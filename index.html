@@ -1,0 +1,842 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>C&D AI Agent Operations Center v6 — Church &amp; Dwight</title>
+<style>
+/* ── Design tokens ── */
+:root {
+  --page:#031a2e; --surface-1:#062338; --surface-2:#082d48; --surface-3:#0d3858;
+  --border:rgba(255,255,255,0.08); --border-bright:rgba(99,179,255,0.28);
+  --a1:#3987e5; --a2:#d95926; --a3:#199e70; --a4:#c89a1a; --a5:#b84db0;
+  --a6:#0A7EC2; --a7:#0097A7; --a8:#7C4DFF;
+  --good:#0ca30c; --warning:#fab219; --serious:#ec835a; --critical:#e55;
+  --ink-1:#e8eaf0; --ink-2:#8b93a8; --ink-3:#4f5872; --grid:rgba(255,255,255,0.05);
+  --joule-glow:rgba(10,74,120,0.35); --joule-line:rgba(10,74,160,0.70);
+}
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
+html{font-size:21px;}
+body{font-family:system-ui,-apple-system,"Segoe UI",sans-serif;background:var(--page);color:var(--ink-1);min-height:100vh;line-height:1.6;}
+/* Demo banner */
+.demo-banner{display:flex;align-items:center;gap:14px;padding:10px 32px;background:rgba(251,191,36,.10);border-bottom:2px solid rgba(251,191,36,.35);font-size:17px;flex-wrap:wrap;position:sticky;top:0;z-index:300;}
+.demo-banner-icon{font-size:18px;flex-shrink:0;}
+.demo-banner-text{color:#fde68a;flex:1;}
+.demo-banner-pill{padding:3px 12px;background:rgba(251,191,36,.15);border:1px solid rgba(251,191,36,.3);border-radius:20px;color:#fbbf24;font-size:16px;font-weight:600;white-space:nowrap;}
+.demo-banner-pill.green{background:rgba(12,163,12,.12);border-color:rgba(12,163,12,.3);color:var(--good);}
+/* Header */
+.hdr{display:flex;align-items:center;justify-content:space-between;padding:0 32px;height:80px;background:linear-gradient(90deg,#020c1c 0%,#083460 100%);border-bottom:1px solid var(--border-bright);position:sticky;top:41px;z-index:200;}
+.hdr-left{display:flex;align-items:center;gap:18px;}
+.joule-logo{width:50px;height:50px;background:linear-gradient(135deg,#0A4A78 0%,#C9234B 100%);border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:24px;font-weight:800;color:#fff;box-shadow:0 0 20px var(--joule-glow);flex-shrink:0;}
+.hdr-title{font-size:20px;font-weight:600;color:var(--ink-1);}
+.hdr-sub{font-size:17px;color:var(--ink-2);}
+.hdr-right{display:flex;align-items:center;gap:14px;}
+.hdr-badge{padding:4px 12px;border-radius:20px;font-size:17px;font-weight:600;background:rgba(229,85,85,0.15);color:var(--critical);border:1px solid rgba(229,85,85,0.3);animation:pulse 2s infinite;}
+.hdr-badge-ok{padding:4px 12px;border-radius:20px;font-size:17px;font-weight:600;background:rgba(12,163,12,0.12);color:var(--good);border:1px solid rgba(12,163,12,0.25);}
+.hdr-time{font-size:17px;color:var(--ink-3);font-variant-numeric:tabular-nums;}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.6}}
+/* Tab bar */
+.tab-bar{display:flex;gap:2px;padding:0 32px;background:#020b18;border-bottom:1px solid var(--border);position:sticky;top:121px;z-index:190;overflow-x:auto;}
+.tab{padding:18px 24px;font-size:17px;font-weight:500;color:var(--ink-3);cursor:pointer;border-bottom:2px solid transparent;transition:color .15s,border-color .15s;user-select:none;white-space:nowrap;}
+.tab:hover{color:var(--ink-2);}
+.tab.active{color:var(--a1);border-bottom-color:var(--a1);}
+/* Body layout */
+.body{padding:28px 40px 72px;display:flex;flex-direction:column;gap:20px;}
+.joule-shimmer{height:2px;background:linear-gradient(90deg,transparent 0%,var(--joule-line) 30%,#C9234B 70%,transparent 100%);border-radius:1px;opacity:.7;}
+/* KPI row */
+.kpi-row{display:grid;grid-template-columns:repeat(5,1fr);gap:16px;}
+.kpi-card{background:var(--surface-1);border:1px solid var(--border);border-radius:16px;padding:24px 28px;position:relative;overflow:hidden;transition:border-color .2s;}
+.kpi-card:hover{border-color:var(--border-bright);}
+.kpi-card::before{content:'';position:absolute;inset:0;border-radius:16px;pointer-events:none;}
+.kpi-card.critical::before{background:linear-gradient(135deg,rgba(229,85,85,.06) 0%,transparent 60%);}
+.kpi-card.warning::before{background:linear-gradient(135deg,rgba(250,178,25,.06) 0%,transparent 60%);}
+.kpi-card.good::before{background:linear-gradient(135deg,rgba(12,163,12,.06) 0%,transparent 60%);}
+.kpi-card.blue::before{background:linear-gradient(135deg,rgba(57,135,229,.06) 0%,transparent 60%);}
+.kpi-label{font-size:16px;color:var(--ink-2);font-weight:500;text-transform:uppercase;letter-spacing:.06em;}
+.kpi-value{font-size:48px;font-weight:700;line-height:1.1;margin:6px 0 4px;}
+.kpi-value.critical{color:var(--critical);} .kpi-value.warning{color:var(--warning);} .kpi-value.good{color:var(--good);} .kpi-value.blue{color:var(--a1);}
+.kpi-meta{font-size:16px;color:var(--ink-3);display:flex;align-items:center;gap:8px;margin-bottom:6px;}
+.kpi-source{font-size:14px;color:var(--ink-3);border-top:1px solid var(--border);padding-top:6px;margin-top:4px;}
+.status-dot{width:8px;height:8px;border-radius:50%;flex-shrink:0;}
+.dot-critical{background:var(--critical);box-shadow:0 0 6px var(--critical);}
+.dot-warning{background:var(--warning);} .dot-good{background:var(--good);box-shadow:0 0 5px rgba(12,163,12,.5);}
+/* Layout */
+.two-col{display:grid;grid-template-columns:1fr 1fr;gap:20px;}
+.three-col{display:grid;grid-template-columns:1fr 1fr 1fr;gap:20px;}
+.two-col-wide{display:grid;grid-template-columns:3fr 2fr;gap:20px;}
+/* Card */
+.card{background:var(--surface-1);border:1px solid var(--border);border-radius:14px;overflow:hidden;}
+.card-head{display:flex;align-items:center;justify-content:space-between;padding:14px 20px 10px;border-bottom:1px solid var(--border);}
+.card-title{font-size:17px;font-weight:600;color:var(--ink-1);text-transform:uppercase;letter-spacing:.07em;}
+.card-sub{font-size:16px;color:var(--ink-3);}
+.card-body{padding:18px 20px;}
+.section-label{font-size:16px;font-weight:700;color:var(--ink-3);text-transform:uppercase;letter-spacing:.1em;padding:0 0 8px;border-bottom:1px solid var(--border);margin-bottom:14px;}
+/* Badges */
+.badge{display:inline-flex;align-items:center;gap:4px;padding:3px 10px;border-radius:20px;font-size:15px;font-weight:700;letter-spacing:.04em;}
+.badge-critical{background:rgba(229,85,85,.15);color:var(--critical);border:1px solid rgba(229,85,85,.3);}
+.badge-warning{background:rgba(250,178,25,.12);color:var(--warning);border:1px solid rgba(250,178,25,.3);}
+.badge-good{background:rgba(12,163,12,.12);color:var(--good);border:1px solid rgba(12,163,12,.3);}
+.badge-blue{background:rgba(57,135,229,.12);color:var(--a1);border:1px solid rgba(57,135,229,.3);}
+.badge-amber{background:rgba(200,154,26,.12);color:var(--a4);border:1px solid rgba(200,154,26,.3);}
+.badge-purple{background:rgba(184,77,176,.12);color:var(--a5);border:1px solid rgba(184,77,176,.3);}
+.badge-a6{background:rgba(10,126,194,.12);color:var(--a6);border:1px solid rgba(10,126,194,.3);}
+.badge-a7{background:rgba(0,151,167,.12);color:var(--a7);border:1px solid rgba(0,151,167,.3);}
+.badge-a8{background:rgba(124,77,255,.12);color:var(--a8);border:1px solid rgba(124,77,255,.3);}
+/* SAP source pill */
+.sap-pill{display:inline-flex;align-items:center;gap:5px;padding:2px 9px;border-radius:5px;font-size:14px;font-weight:600;background:rgba(10,126,194,.10);border:1px solid rgba(10,126,194,.25);color:var(--a6);}
+.ext-pill{display:inline-flex;align-items:center;gap:5px;padding:2px 9px;border-radius:5px;font-size:14px;font-weight:600;background:rgba(200,154,26,.08);border:1px solid rgba(200,154,26,.25);color:var(--a4);}
+/* Alerts */
+.alert-banner{display:flex;align-items:flex-start;gap:14px;background:rgba(229,85,85,.08);border:1px solid rgba(229,85,85,.25);border-radius:12px;padding:14px 18px;font-size:17px;}
+.alert-banner.warn{background:rgba(250,178,25,.08);border-color:rgba(250,178,25,.25);}
+.alert-banner.info{background:rgba(57,135,229,.07);border-color:rgba(57,135,229,.2);}
+.alert-banner.network{background:rgba(124,77,255,.07);border-color:rgba(124,77,255,.25);}
+.alert-icon{font-size:20px;flex-shrink:0;margin-top:2px;}
+.alert-title{font-weight:600;color:var(--critical);margin-bottom:4px;}
+.alert-banner.warn .alert-title{color:var(--warning);} .alert-banner.info .alert-title{color:var(--a1);}
+.alert-banner.network .alert-title{color:var(--a8);}
+.alert-body{color:var(--ink-2);line-height:1.6;}
+.alert-src{margin-top:8px;display:flex;gap:8px;flex-wrap:wrap;}
+/* Actions */
+.action-list{display:flex;flex-direction:column;gap:10px;}
+.action-item{display:flex;align-items:flex-start;gap:14px;background:var(--surface-2);border:1px solid var(--border);border-radius:10px;padding:14px 16px;font-size:17px;transition:border-color .15s;}
+.action-item:hover{border-color:var(--border-bright);}
+.action-prio{flex-shrink:0;width:64px;padding:3px 0;text-align:center;border-radius:5px;font-size:15px;font-weight:700;}
+.prio-critical{background:rgba(229,85,85,.15);color:var(--critical);}
+.prio-today{background:rgba(250,178,25,.12);color:var(--warning);}
+.prio-week{background:rgba(57,135,229,.12);color:var(--a1);}
+.prio-ongoing{background:rgba(12,163,12,.1);color:var(--good);}
+.action-body{flex:1;} .action-title{font-weight:600;color:var(--ink-1);margin-bottom:3px;}
+.action-desc{color:var(--ink-2);line-height:1.6;} .action-meta{display:flex;gap:8px;margin-top:8px;flex-wrap:wrap;}
+/* Agent strips */
+.agent-strip-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;}
+.agent-strip{background:var(--surface-1);border:1px solid var(--border);border-radius:14px;overflow:hidden;cursor:pointer;transition:border-color .2s,transform .2s,box-shadow .2s;}
+.agent-strip:hover{border-color:var(--border-bright);transform:translateY(-2px);box-shadow:0 8px 28px rgba(0,0,0,.4);}
+.strip-accent{height:5px;}
+.strip-inner{padding:16px;}
+.strip-num{font-size:15px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;margin-bottom:8px;}
+.strip-title{font-size:18px;font-weight:700;color:var(--ink-1);margin-bottom:8px;line-height:1.3;}
+.strip-kpis{display:flex;flex-direction:column;gap:5px;margin-bottom:12px;}
+.strip-kpi{display:flex;justify-content:space-between;font-size:16px;}
+.strip-kpi-label{color:var(--ink-3);} .strip-kpi-val{font-weight:600;color:var(--ink-1);}
+.strip-footer{background:var(--surface-2);border-top:1px solid var(--border);padding:10px 16px;display:flex;align-items:center;justify-content:space-between;}
+.strip-status{font-size:16px;display:flex;align-items:center;gap:8px;}
+.strip-drill{font-size:15px;color:var(--ink-3);}
+/* Agent accent colours */
+.sa1 .strip-accent{background:var(--a1);} .sa1 .strip-num{color:var(--a1);}
+.sa2 .strip-accent{background:var(--a2);} .sa2 .strip-num{color:var(--a2);}
+.sa3 .strip-accent{background:var(--a3);} .sa3 .strip-num{color:var(--a3);}
+.sa4 .strip-accent{background:var(--a4);} .sa4 .strip-num{color:var(--a4);}
+.sa5 .strip-accent{background:var(--a5);} .sa5 .strip-num{color:var(--a5);}
+.sa6 .strip-accent{background:var(--a6);} .sa6 .strip-num{color:var(--a6);}
+.sa7 .strip-accent{background:var(--a7);} .sa7 .strip-num{color:var(--a7);}
+.sa8 .strip-accent{background:var(--a8);} .sa8 .strip-num{color:var(--a8);}
+/* Agent selector */
+.agent-selector{display:flex;gap:10px;flex-wrap:wrap;}
+.agent-btn{padding:7px 16px;border-radius:20px;font-size:17px;font-weight:600;border:1px solid var(--border);background:var(--surface-2);color:var(--ink-2);cursor:pointer;transition:all .15s;}
+.agent-btn:hover{border-color:var(--border-bright);color:var(--ink-1);}
+.agent-btn.active-a1{background:rgba(57,135,229,.15);color:var(--a1);border-color:rgba(57,135,229,.4);}
+.agent-btn.active-a2{background:rgba(217,89,38,.15);color:var(--a2);border-color:rgba(217,89,38,.4);}
+.agent-btn.active-a3{background:rgba(25,158,112,.15);color:var(--a3);border-color:rgba(25,158,112,.4);}
+.agent-btn.active-a4{background:rgba(200,154,26,.15);color:var(--a4);border-color:rgba(200,154,26,.4);}
+.agent-btn.active-a5{background:rgba(184,77,176,.15);color:var(--a5);border-color:rgba(184,77,176,.4);}
+.agent-btn.active-a6{background:rgba(10,126,194,.15);color:var(--a6);border-color:rgba(10,126,194,.4);}
+.agent-btn.active-a7{background:rgba(0,151,167,.15);color:var(--a7);border-color:rgba(0,151,167,.4);}
+.agent-btn.active-a8{background:rgba(124,77,255,.15);color:var(--a8);border-color:rgba(124,77,255,.4);}
+/* Feed */
+.feed-list{display:flex;flex-direction:column;gap:0;}
+.feed-item{display:flex;gap:14px;padding:10px 0;border-bottom:1px solid var(--border);font-size:17px;}
+.feed-item:last-child{border-bottom:none;}
+.feed-dot-wrap{display:flex;flex-direction:column;align-items:center;padding-top:3px;}
+.feed-dot{width:9px;height:9px;border-radius:50%;flex-shrink:0;}
+.feed-line{width:1px;flex:1;background:var(--border);margin-top:5px;}
+.feed-right{flex:1;}
+.feed-agent{font-size:15px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;margin-bottom:2px;}
+.feed-msg{color:var(--ink-1);margin-bottom:2px;}
+.feed-time{font-size:15px;color:var(--ink-3);}
+/* ROI */
+.roi-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;}
+.roi-card{background:var(--surface-1);border:1px solid var(--border);border-radius:14px;padding:20px 18px;position:relative;}
+.roi-card::after{content:'';position:absolute;bottom:0;left:0;right:0;height:4px;}
+.roi-card.rc1::after{background:var(--a1);} .roi-card.rc2::after{background:var(--a2);}
+.roi-card.rc3::after{background:var(--a3);} .roi-card.rc4::after{background:var(--a4);}
+.roi-card.rc5::after{background:var(--a5);} .roi-card.rc6::after{background:var(--a6);}
+.roi-card.rc7::after{background:var(--a7);} .roi-card.rc8::after{background:var(--a8);}
+.roi-agent{font-size:15px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;margin-bottom:6px;}
+.roi-title{font-size:17px;color:var(--ink-1);margin-bottom:12px;}
+.roi-val{font-size:30px;font-weight:700;margin-bottom:4px;}
+.roi-sub{font-size:16px;color:var(--ink-2);}
+.roi-bar-track{height:5px;background:var(--surface-3);border-radius:3px;margin-top:12px;overflow:hidden;}
+.roi-bar-fill{height:100%;border-radius:3px;}
+/* Tables */
+.data-table{width:100%;border-collapse:collapse;font-size:17px;}
+.data-table th{text-align:left;padding:8px 14px;font-size:15px;font-weight:600;color:var(--ink-3);text-transform:uppercase;letter-spacing:.06em;border-bottom:1px solid var(--border);}
+.data-table td{padding:12px 14px;border-bottom:1px solid var(--border);}
+.data-table tr:last-child td{border-bottom:none;}
+.data-table tbody tr{transition:background .12s;cursor:pointer;}
+.data-table tbody tr:hover{background:var(--surface-3);}
+/* Bars */
+.bar-track{height:7px;background:var(--surface-3);border-radius:4px;overflow:hidden;display:inline-block;vertical-align:middle;}
+.bar-fill{height:100%;border-radius:4px;}
+/* Allocation */
+.alloc-tier-row{display:flex;align-items:center;gap:12px;padding:10px 0;border-bottom:1px solid var(--border);font-size:17px;}
+.alloc-tier-row:last-child{border-bottom:none;}
+.alloc-tier-label{width:140px;flex-shrink:0;color:var(--ink-1);font-weight:600;}
+.alloc-quota-track{flex:1;height:10px;background:var(--surface-3);border-radius:5px;overflow:hidden;}
+.alloc-quota-fill{height:100%;border-radius:5px;}
+.alloc-pct{font-size:17px;font-weight:700;width:50px;text-align:right;flex-shrink:0;}
+.alloc-units{font-size:16px;color:var(--ink-3);width:90px;text-align:right;flex-shrink:0;}
+/* BN specific */
+.bn-phase-header{font-size:16px;font-weight:700;text-transform:uppercase;letter-spacing:.1em;padding:10px 0;border-bottom:2px solid var(--a8);color:var(--a8);margin-bottom:14px;}
+.bn-partner-row{display:flex;align-items:center;gap:14px;padding:10px 0;border-bottom:1px solid var(--border);font-size:17px;}
+.bn-partner-row:last-child{border-bottom:none;}
+.bn-partner-name{font-weight:600;color:var(--ink-1);width:150px;flex-shrink:0;}
+.bn-partner-type{font-size:15px;color:var(--ink-3);width:130px;flex-shrink:0;}
+.bn-signal-bar-track{flex:1;height:9px;background:var(--surface-3);border-radius:5px;overflow:hidden;}
+.bn-signal-bar-fill{height:100%;border-radius:5px;}
+.bn-pct{font-size:17px;font-weight:700;width:50px;text-align:right;flex-shrink:0;}
+.bn-scarcity-row{display:flex;align-items:center;gap:12px;padding:9px 0;border-bottom:1px solid var(--border);font-size:17px;}
+.bn-scarcity-row:last-child{border-bottom:none;}
+.bn-buyer-name{width:180px;flex-shrink:0;color:var(--ink-2);}
+.bn-urgency-bar{flex:1;height:9px;background:var(--surface-3);border-radius:5px;overflow:hidden;}
+.bn-urgency-fill{height:100%;border-radius:5px;}
+.bn-urgency-label{font-size:15px;font-weight:700;width:70px;text-align:right;flex-shrink:0;}
+/* SAP coverage tab */
+.cov-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;}
+.cov-card{background:var(--surface-1);border:1px solid var(--border);border-radius:14px;padding:20px;position:relative;overflow:hidden;}
+.cov-card::before{content:'';position:absolute;left:0;top:0;bottom:0;width:5px;}
+.cov-card.cov-green::before{background:var(--good);}
+.cov-card.cov-amber::before{background:var(--warning);}
+.cov-card.cov-red::before{background:var(--critical);}
+.cov-card-title{font-size:18px;font-weight:700;color:var(--ink-1);margin-bottom:4px;}
+.cov-card-sub{font-size:15px;color:var(--ink-3);margin-bottom:12px;}
+.cov-tag{display:inline-flex;padding:2px 8px;border-radius:5px;font-size:14px;font-weight:700;margin-bottom:8px;}
+.cov-tag.green{background:rgba(12,163,12,.12);color:var(--good);border:1px solid rgba(12,163,12,.3);}
+.cov-tag.amber{background:rgba(250,178,25,.10);color:var(--warning);border:1px solid rgba(250,178,25,.3);}
+.cov-tag.red{background:rgba(229,85,85,.10);color:var(--critical);border:1px solid rgba(229,85,85,.3);}
+.cov-list{list-style:none;display:flex;flex-direction:column;gap:5px;}
+.cov-list li{font-size:16px;color:var(--ink-2);display:flex;align-items:flex-start;gap:8px;}
+.cov-list li::before{content:'▸';color:var(--ink-3);flex-shrink:0;margin-top:1px;}
+/* AI Panel */
+.ai-panel{position:fixed;bottom:24px;right:24px;width:390px;background:var(--surface-1);border:1px solid var(--border-bright);border-radius:18px;box-shadow:0 16px 48px rgba(0,0,0,.6);display:flex;flex-direction:column;z-index:500;transition:height .3s ease;overflow:hidden;}
+.ai-panel.collapsed{height:56px;} .ai-panel.expanded{height:450px;}
+.ai-panel-head{display:flex;align-items:center;justify-content:space-between;padding:12px 16px;border-bottom:1px solid var(--border);cursor:pointer;user-select:none;flex-shrink:0;}
+.ai-panel-title{display:flex;align-items:center;gap:10px;font-size:18px;font-weight:600;color:var(--ink-1);}
+.ai-pulse{width:9px;height:9px;border-radius:50%;background:var(--a3);box-shadow:0 0 8px var(--a3);animation:pulse 1.5s infinite;}
+.ai-toggle{font-size:18px;color:var(--ink-3);}
+.ai-body{flex:1;overflow-y:auto;padding:12px 16px;display:flex;flex-direction:column;gap:10px;}
+.ai-msg{font-size:17px;line-height:1.6;background:var(--surface-2);border:1px solid var(--border);border-radius:10px;padding:10px 14px;}
+.ai-msg.user{background:rgba(57,135,229,.1);border-color:rgba(57,135,229,.2);text-align:right;color:var(--ink-1);}
+.ai-msg.bot{color:var(--ink-2);}
+.ai-msg strong{color:var(--ink-1);}
+.ai-input-row{display:flex;gap:8px;padding:10px 14px 14px;flex-shrink:0;border-top:1px solid var(--border);}
+.ai-input{flex:1;background:var(--surface-3);border:1px solid var(--border);border-radius:9px;padding:8px 12px;font-size:17px;color:var(--ink-1);outline:none;font-family:inherit;}
+.ai-input:focus{border-color:rgba(57,135,229,.4);}
+.ai-send{background:var(--a1);border:none;border-radius:9px;padding:0 14px;color:#fff;font-size:16px;cursor:pointer;}
+/* Help */
+.help-faq-item{background:var(--surface-1);border:1px solid var(--border);border-radius:12px;padding:14px 18px;cursor:pointer;transition:border-color .15s;margin-bottom:10px;}
+.help-faq-item:hover{border-color:var(--border-bright);}
+.help-faq-q{font-size:18px;font-weight:600;color:var(--ink-1);display:flex;justify-content:space-between;align-items:center;gap:14px;}
+.help-faq-a{font-size:17px;color:var(--ink-2);line-height:1.7;margin-top:10px;padding-top:10px;border-top:1px solid var(--border);}
+/* Misc */
+.risk-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;}
+.risk-cell{border-radius:10px;padding:14px;font-size:17px;border:1px solid var(--border);cursor:pointer;transition:border-color .15s;}
+.risk-cell.high{background:rgba(229,85,85,.08);border-color:rgba(229,85,85,.2);}
+.risk-cell.medium{background:rgba(250,178,25,.06);border-color:rgba(250,178,25,.2);}
+.risk-cell.low{background:rgba(12,163,12,.05);border-color:rgba(12,163,12,.15);}
+.risk-supplier{font-weight:700;color:var(--ink-1);margin-bottom:4px;}
+.risk-commodity{font-size:15px;color:var(--ink-2);margin-bottom:8px;}
+.risk-score{font-size:28px;font-weight:700;}
+.risk-cell.high .risk-score{color:var(--critical);}
+.risk-cell.medium .risk-score{color:var(--warning);}
+.risk-cell.low .risk-score{color:var(--good);}
+/* Benchmark row */
+.bm-row{display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid var(--border);font-size:17px;}
+.bm-row:last-child{border-bottom:none;}
+.bm-label{width:220px;flex-shrink:0;color:var(--ink-2);}
+.bm-val{font-weight:700;width:80px;flex-shrink:0;}
+.bm-industry{font-size:15px;color:var(--ink-3);flex:1;}
+.bm-source{font-size:14px;color:var(--ink-3);width:160px;text-align:right;flex-shrink:0;}
+/* Responsive */
+@media(max-width:1300px){.kpi-row,.agent-strip-grid,.roi-grid,.cov-grid{grid-template-columns:repeat(3,1fr);}}
+@media(max-width:900px){.two-col,.three-col,.two-col-wide{grid-template-columns:1fr;}.kpi-row,.agent-strip-grid,.roi-grid,.cov-grid{grid-template-columns:repeat(2,1fr);}}
+</style>
+</head>
+<body>
+
+<!-- DEMO BANNER -->
+<div class="demo-banner">
+  <span class="demo-banner-icon">⚠️</span>
+  <span class="demo-banner-text"><strong>DEMO DATA ONLY — v6</strong> · All figures are illustrative. Not connected to any live system. KPI benchmarks sourced from published industry research (see 📋 Data Sources tab).</span>
+  <span class="demo-banner-pill">v6: All agents now grounded in SAP SCM product capabilities</span>
+  <span class="demo-banner-pill green">✓ SAP-validated scenarios</span>
+</div>
+
+<!-- HEADER -->
+<header class="hdr">
+  <div class="hdr-left">
+    <div class="joule-logo">J</div>
+    <div>
+      <div class="hdr-title">AI Agent Operations Center <span style="font-size:15px;color:var(--a8);font-weight:700;margin-left:8px;">v6 · SAP-Grounded</span></div>
+      <div class="hdr-sub">Church &amp; Dwight · $6.2B Revenue · 8 Active Agents · SAP IBP + S/4HANA + DM + BN</div>
+    </div>
+  </div>
+  <div class="hdr-right">
+    <div class="hdr-badge">⚡ 5 ALERTS ACTIVE</div>
+    <div class="hdr-badge-ok">✓ 8/8 AGENTS RUNNING</div>
+    <div class="hdr-time" id="clock">—</div>
+  </div>
+</header>
+
+<!-- NAV -->
+<nav class="tab-bar">
+  <div class="tab active" onclick="switchTab(this,'overview')">Overview</div>
+  <div class="tab" onclick="switchTab(this,'deepdive')">Agent Deep Dive</div>
+  <div class="tab" onclick="switchTab(this,'actions')">Action Queue</div>
+  <div class="tab" onclick="switchTab(this,'roi')">ROI &amp; Impact</div>
+  <div class="tab" onclick="switchTab(this,'allocation')">📦 Allocation</div>
+  <div class="tab" onclick="switchTab(this,'manufacturing')">🏭 Manufacturing</div>
+  <div class="tab" onclick="switchTab(this,'network')" style="color:var(--a8);">🌐 Business Network</div>
+  <div class="tab" onclick="switchTab(this,'coverage')" style="color:var(--good);">🟢 SAP Coverage</div>
+  <div class="tab" onclick="switchTab(this,'sources')" style="color:#fbbf24;">📋 Data Sources</div>
+  <div class="tab" onclick="switchTab(this,'help')">📖 Help Guide</div>
+</nav>
+
+<main class="body">
+  <div class="joule-shimmer"></div>
+
+  <!-- ════ OVERVIEW ════ -->
+  <div id="tab-overview">
+    <div class="kpi-row">
+      <div class="kpi-card good"><div class="kpi-label">Active Agents</div><div class="kpi-value good">8 / 8</div><div class="kpi-meta"><span class="status-dot dot-good"></span>All agents operational</div><div class="kpi-source"><span class="sap-pill">SAP BTP Agent Framework</span></div></div>
+      <div class="kpi-card critical"><div class="kpi-label">Open Alerts</div><div class="kpi-value critical">5</div><div class="kpi-meta"><span class="status-dot dot-critical"></span>3 critical · 2 warning</div><div class="kpi-source"><span class="sap-pill">SAP Alert Management</span></div></div>
+      <div class="kpi-card warning"><div class="kpi-label">Actions Pending</div><div class="kpi-value warning">12</div><div class="kpi-meta"><span class="status-dot dot-warning"></span>4 require immediate action</div><div class="kpi-source"><span class="sap-pill">SAP Task Center</span></div></div>
+      <div class="kpi-card blue"><div class="kpi-label">Est. Annual Value</div><div class="kpi-value blue">$74M</div><div class="kpi-meta"><span class="status-dot dot-good"></span>8 agents · illustrative</div><div class="kpi-source"><span class="ext-pill">SAC Business Case Model</span></div></div>
+      <div class="kpi-card blue"><div class="kpi-label">BN Trading Partners</div><div class="kpi-value blue">186</div><div class="kpi-meta"><span class="status-dot dot-good"></span>38 Tier-1 · 148 Tier-2+</div><div class="kpi-source"><span class="sap-pill">SAP Business Network</span></div></div>
+    </div>
+
+    <!-- Alerts — SAP-grounded v6 -->
+    <div style="display:flex;flex-direction:column;gap:10px;">
+      <div class="alert-banner"><div class="alert-icon">🔴</div><div><div class="alert-title">CRITICAL — ARM &amp; HAMMER Baking Soda: Demand Anomaly +24.8% · PAL Quota 91% Consumed</div><div class="alert-body">SAP IBP Demand Sensing (gradient boosting algorithm) detected +24.8% POS velocity spike on ARM &amp; HAMMER 4lb vs statistical baseline. Signal confirmed via SAP Customer Activity Repository POS feed from 3 major retail partners. Demand anomaly classified as <strong>sustained uplift</strong> (not a data quality issue — outlier correction ran and confirmed). Emergency replenishment recommendation: +840k units over 21 days.</div><div class="alert-src"><span class="sap-pill">SAP IBP Demand Sensing</span><span class="sap-pill">SAP CAR POS</span><span class="sap-pill">SAP aATP PAL</span></div></div></div>
+      <div class="alert-banner"><div class="alert-icon">🔴</div><div><div class="alert-title">CRITICAL — SBC Supply Gap 1,200 MT · Projected Run-Out Aug 21 (18 days)</div><div class="alert-body">SAP IBP Supply Planning MRP exception: Tier-1 SBC supplier declared force majeure (natural disaster — operational disruption). SAP Ariba Risk Management surfaced supplier risk score elevation from 38 → 81 (High). Current on-hand 864 MT at York PA. Daily consumption 48 MT confirmed via SAP Digital Manufacturing production order actuals. IBP replan recommends: activate Tata Chemicals (SAP BN confirmed 800 MT capacity Aug 18) + spot buy 400 MT.</div><div class="alert-src"><span class="sap-pill">SAP IBP Supply</span><span class="sap-pill">SAP Ariba Risk Mgmt</span><span class="sap-pill">SAP DM Actuals</span><span class="sap-pill">SAP BN Planning Collab</span></div></div></div>
+      <div class="alert-banner"><div class="alert-icon">🔴</div><div><div class="alert-title">CRITICAL — York PA Line 4 Unplanned Downtime · OEE 71%</div><div class="alert-body">SAP Digital Manufacturing detected bearing wear anomaly on Line 4 via equipment sensor integration. SAP Plant Maintenance PM notification auto-created (priority: Very High). Downtime: 2.4 hrs. OEE drop from 83% → 71% (CPG industry average: 68–73%). Impact to ARM &amp; HAMMER production: −67k allocatable units. SAP DM production order PO-0342 status: interrupted.</div><div class="alert-src"><span class="sap-pill">SAP Digital Manufacturing</span><span class="sap-pill">SAP Plant Maintenance</span><span class="sap-pill">SAP PP Production Orders</span></div></div></div>
+      <div class="alert-banner network"><div class="alert-icon">🌐</div><div><div class="alert-title">NETWORK ALERT — SAP Business Network: SBC Procurement Constraint Signal · Multiple Network Members</div><div class="alert-body">SAP Business Network Supply Chain Collaboration has surfaced elevated SBC procurement activity across multiple network members — a real capability of the platform's component planning collaboration module. Supplier capacity commitments are being compressed. Agent 08 recommends accelerating Tata Chemicals PO activation via Business Network and initiating SAP Business Network Discovery search for qualified alternative SBC suppliers across UNSPSC category 12141500 (Sodium compounds).</div><div class="alert-src"><span class="sap-pill">SAP BN Supply Chain Collab</span><span class="sap-pill">SAP BN Discovery</span><span class="sap-pill">SAP Ariba Sourcing</span></div></div></div>
+      <div class="alert-banner warn"><div class="alert-icon">🟡</div><div><div class="alert-title">WARNING — Vitafusion Probiotic Batch VF-003: DM Visual Inspection Hold + Regulatory Deadline Sep 1</div><div class="alert-body">SAP Digital Manufacturing AI visual inspection (camera integration) detected 0.4mm print deviation on CFU count label — batch VF-003 (48k units) placed on Quality Hold via SAP QM inspection lot. SAP Product Lifecycle Management label compliance check flagged against FDA 21 CFR Part 101 requirements. Compliant artwork revision ready in SAP PLM. Sep 1 FDA deadline: 29 days.</div><div class="alert-src"><span class="sap-pill">SAP Digital Manufacturing</span><span class="sap-pill">SAP QM Inspection Lots</span><span class="sap-pill">SAP PLM Label Mgmt</span></div></div></div>
+    </div>
+
+    <!-- Agent strips -->
+    <div>
+      <div class="section-label">8 Active Agents — Click to Drill In · Each Agent Powered by SAP SCM Suite</div>
+      <div class="agent-strip-grid">
+        <div class="agent-strip sa1" onclick="drillAgent(1)"><div class="strip-accent"></div><div class="strip-inner"><div class="strip-num">Agent 01</div><div class="strip-title">Demand Sensing &amp; Forecasting</div><div class="strip-kpis"><div class="strip-kpi"><span class="strip-kpi-label">Forecast MAPE</span><span class="strip-kpi-val" style="color:var(--a1);">21.4%</span></div><div class="strip-kpi"><span class="strip-kpi-label">Active Anomalies</span><span class="strip-kpi-val" style="color:var(--critical);">2</span></div><div class="strip-kpi"><span class="strip-kpi-label">SKUs Monitored</span><span class="strip-kpi-val">847</span></div></div></div><div class="strip-footer"><div class="strip-status"><span class="status-dot dot-critical"></span><span style="color:var(--critical);">1 Critical Alert</span></div><div class="strip-drill">Drill in →</div></div></div>
+        <div class="agent-strip sa2" onclick="drillAgent(2)"><div class="strip-accent"></div><div class="strip-inner"><div class="strip-num">Agent 02</div><div class="strip-title">Trade Promotion Optimization</div><div class="strip-kpis"><div class="strip-kpi"><span class="strip-kpi-label">Active Promos</span><span class="strip-kpi-val">28</span></div><div class="strip-kpi"><span class="strip-kpi-label">Portfolio ROI</span><span class="strip-kpi-val" style="color:var(--a2);">38%</span></div><div class="strip-kpi"><span class="strip-kpi-label">Low-ROI Flags</span><span class="strip-kpi-val" style="color:var(--warning);">4</span></div></div></div><div class="strip-footer"><div class="strip-status"><span class="status-dot dot-warning"></span><span style="color:var(--warning);">4 Low-ROI Promos</span></div><div class="strip-drill">Drill in →</div></div></div>
+        <div class="agent-strip sa3" onclick="drillAgent(3)"><div class="strip-accent"></div><div class="strip-inner"><div class="strip-num">Agent 03</div><div class="strip-title">Customer &amp; Channel Intelligence</div><div class="strip-kpis"><div class="strip-kpi"><span class="strip-kpi-label">NPS Index</span><span class="strip-kpi-val" style="color:var(--a3);">62</span></div><div class="strip-kpi"><span class="strip-kpi-label">POS Velocity</span><span class="strip-kpi-val">+6.2%</span></div><div class="strip-kpi"><span class="strip-kpi-label">Competitor Alerts</span><span class="strip-kpi-val">2</span></div></div></div><div class="strip-footer"><div class="strip-status"><span class="status-dot dot-good"></span><span style="color:var(--good);">Healthy</span></div><div class="strip-drill">Drill in →</div></div></div>
+        <div class="agent-strip sa4" onclick="drillAgent(4)"><div class="strip-accent"></div><div class="strip-inner"><div class="strip-num">Agent 04</div><div class="strip-title">Supply Chain &amp; Sourcing Resilience</div><div class="strip-kpis"><div class="strip-kpi"><span class="strip-kpi-label">High Risk Suppliers</span><span class="strip-kpi-val" style="color:var(--critical);">2</span></div><div class="strip-kpi"><span class="strip-kpi-label">SBC Gap</span><span class="strip-kpi-val" style="color:var(--critical);">1,200 MT</span></div><div class="strip-kpi"><span class="strip-kpi-label">Ariba Risk Score</span><span class="strip-kpi-val" style="color:var(--warning);">81/100</span></div></div></div><div class="strip-footer"><div class="strip-status"><span class="status-dot dot-critical"></span><span style="color:var(--critical);">1 Critical Risk</span></div><div class="strip-drill">Drill in →</div></div></div>
+        <div class="agent-strip sa5" onclick="drillAgent(5)"><div class="strip-accent"></div><div class="strip-inner"><div class="strip-num">Agent 05</div><div class="strip-title">Regulatory &amp; Label Compliance</div><div class="strip-kpis"><div class="strip-kpi"><span class="strip-kpi-label">PLM Compliance</span><span class="strip-kpi-val" style="color:var(--a5);">97.6%</span></div><div class="strip-kpi"><span class="strip-kpi-label">QM Pending</span><span class="strip-kpi-val" style="color:var(--warning);">3</span></div><div class="strip-kpi"><span class="strip-kpi-label">Batch Hold</span><span class="strip-kpi-val" style="color:var(--critical);">48k units</span></div></div></div><div class="strip-footer"><div class="strip-status"><span class="status-dot dot-warning"></span><span style="color:var(--warning);">3 Reviews Due</span></div><div class="strip-drill">Drill in →</div></div></div>
+        <div class="agent-strip sa6" onclick="drillAgent(6)"><div class="strip-accent"></div><div class="strip-inner"><div class="strip-num">Agent 06</div><div class="strip-title">Allocation Intelligence</div><div class="strip-kpis"><div class="strip-kpi"><span class="strip-kpi-label">aATP Fill Rate</span><span class="strip-kpi-val" style="color:var(--a6);">94.3%</span></div><div class="strip-kpi"><span class="strip-kpi-label">PAL Quota (WMT)</span><span class="strip-kpi-val" style="color:var(--critical);">91%</span></div><div class="strip-kpi"><span class="strip-kpi-label">IBP→S4 Sync</span><span class="strip-kpi-val">12 min ago</span></div></div></div><div class="strip-footer"><div class="strip-status"><span class="status-dot dot-critical"></span><span style="color:var(--critical);">Quota Breach Alert</span></div><div class="strip-drill">Drill in →</div></div></div>
+        <div class="agent-strip sa7" onclick="drillAgent(7)"><div class="strip-accent"></div><div class="strip-inner"><div class="strip-num">Agent 07</div><div class="strip-title">Manufacturing Intelligence</div><div class="strip-kpis"><div class="strip-kpi"><span class="strip-kpi-label">Plant OEE (avg)</span><span class="strip-kpi-val" style="color:var(--warning);">72%</span></div><div class="strip-kpi"><span class="strip-kpi-label">Line 4 Status</span><span class="strip-kpi-val" style="color:var(--critical);">DOWNTIME</span></div><div class="strip-kpi"><span class="strip-kpi-label">SBC Burn Rate</span><span class="strip-kpi-val" style="color:var(--critical);">48 MT/day</span></div></div></div><div class="strip-footer"><div class="strip-status"><span class="status-dot dot-critical"></span><span style="color:var(--critical);">Line 4 Down</span></div><div class="strip-drill">Drill in →</div></div></div>
+        <div class="agent-strip sa8" onclick="drillAgent(8)"><div class="strip-accent"></div><div class="strip-inner"><div class="strip-num">Agent 08</div><div class="strip-title">Business Network Intelligence</div><div class="strip-kpis"><div class="strip-kpi"><span class="strip-kpi-label">BN Constraint Signal</span><span class="strip-kpi-val" style="color:var(--critical);">HIGH — SBC</span></div><div class="strip-kpi"><span class="strip-kpi-label">Forecast Shared</span><span class="strip-kpi-val" style="color:var(--a8);">12 suppliers</span></div><div class="strip-kpi"><span class="strip-kpi-label">PO Confirm Rate</span><span class="strip-kpi-val" style="color:var(--good);">94.2%</span></div></div></div><div class="strip-footer"><div class="strip-status"><span class="status-dot dot-critical"></span><span style="color:var(--critical);">Supply Constraint</span></div><div class="strip-drill">Drill in →</div></div></div>
+      </div>
+    </div>
+
+    <!-- Feed + Chart -->
+    <div class="two-col">
+      <div class="card"><div class="card-head"><div class="card-title">Live Agent Activity Feed</div><div class="card-sub">SAP Alert Management · Real-time</div></div><div class="card-body" style="padding:14px 18px;"><div class="feed-list" id="feed-list"></div></div></div>
+      <div class="card"><div class="card-head"><div class="card-title">Demand Trend — Top 4 SKU Families</div><div class="card-sub">SAP IBP Demand Sensing · Daily POS</div></div><div class="card-body" style="padding:12px 16px 8px;"><svg width="100%" viewBox="0 0 480 190" style="display:block;overflow:visible;"><line stroke="rgba(255,255,255,0.05)" stroke-width="1" x1="48" y1="10" x2="470" y2="10"/><line stroke="rgba(255,255,255,0.05)" stroke-width="1" x1="48" y1="50" x2="470" y2="50"/><line stroke="rgba(255,255,255,0.05)" stroke-width="1" x1="48" y1="90" x2="470" y2="90"/><line stroke="rgba(255,255,255,0.05)" stroke-width="1" x1="48" y1="130" x2="470" y2="130"/><line stroke="rgba(255,255,255,0.05)" stroke-width="1" x1="48" y1="160" x2="470" y2="160"/><text style="font-size:14px;fill:var(--ink-3);font-family:inherit;" x="42" y="14" text-anchor="end">120k</text><text style="font-size:14px;fill:var(--ink-3);font-family:inherit;" x="42" y="54" text-anchor="end">90k</text><text style="font-size:14px;fill:var(--ink-3);font-family:inherit;" x="42" y="94" text-anchor="end">60k</text><text style="font-size:14px;fill:var(--ink-3);font-family:inherit;" x="42" y="134" text-anchor="end">30k</text><text style="font-size:14px;fill:var(--ink-3);font-family:inherit;" x="80" y="178" text-anchor="middle">Apr</text><text style="font-size:14px;fill:var(--ink-3);font-family:inherit;" x="160" y="178" text-anchor="middle">May</text><text style="font-size:14px;fill:var(--ink-3);font-family:inherit;" x="240" y="178" text-anchor="middle">Jun</text><text style="font-size:14px;fill:var(--ink-3);font-family:inherit;" x="320" y="178" text-anchor="middle">Jul</text><text style="font-size:14px;fill:var(--ink-3);font-family:inherit;" x="400" y="178" text-anchor="middle">Aug</text><path fill="none" stroke="#3987e5" stroke-width="2.5" stroke-linecap="round" d="M80,110 C120,105 160,100 200,92 C240,82 280,62 320,44 C360,24 400,18 460,15"/><path fill="none" stroke="#d95926" stroke-width="2.5" stroke-linecap="round" d="M80,130 C120,128 160,124 200,120 C240,114 280,104 320,98 C360,92 400,90 460,88"/><path fill="none" stroke="#199e70" stroke-width="2.5" stroke-linecap="round" d="M80,140 C120,137 160,134 200,130 C240,125 280,122 320,118 C360,114 400,112 460,108"/><path fill="none" stroke="#c89a1a" stroke-width="2.5" stroke-linecap="round" d="M80,148 C120,147 160,146 200,145 C240,142 280,140 320,138 C360,136 400,135 460,133"/><line stroke="rgba(99,179,255,.4)" stroke-width="1" stroke-dasharray="3 2" x1="400" y1="10" x2="400" y2="165"/><text style="font-size:13px;fill:var(--ink-2);font-family:inherit;" x="404" y="22">Today</text><circle cx="400" cy="15" r="5" fill="#3987e5" stroke="#062338" stroke-width="1.5"/><line stroke="var(--critical)" stroke-width="1.5" x1="400" y1="10" x2="418" y2="5"/><text style="font-size:13px;fill:var(--critical);font-family:inherit;" x="420" y="7">+24.8% IBP spike</text></svg><div style="display:flex;gap:16px;flex-wrap:wrap;margin-top:6px;"><span style="display:flex;align-items:center;gap:6px;font-size:15px;color:var(--ink-2);"><span style="width:18px;height:3px;background:#3987e5;border-radius:2px;display:inline-block;"></span>A&amp;H Baking Soda</span><span style="display:flex;align-items:center;gap:6px;font-size:15px;color:var(--ink-2);"><span style="width:18px;height:3px;background:#d95926;border-radius:2px;display:inline-block;"></span>OxiClean</span><span style="display:flex;align-items:center;gap:6px;font-size:15px;color:var(--ink-2);"><span style="width:18px;height:3px;background:#199e70;border-radius:2px;display:inline-block;"></span>Vitafusion</span><span style="display:flex;align-items:center;gap:6px;font-size:15px;color:var(--ink-2);"><span style="width:18px;height:3px;background:#c89a1a;border-radius:2px;display:inline-block;"></span>Batiste</span></div></div></div>
+    </div>
+  </div><!-- /overview -->
+
+  <!-- PARTS 2-4 PLACEHOLDER -->
+
+  <!-- ════ AGENT DEEP DIVE ════ -->
+  <div id="tab-deepdive" style="display:none;">
+    <div class="agent-selector">
+      <button class="agent-btn active-a1" id="abtn-1" onclick="selectAgent(1)">① Demand Sensing</button>
+      <button class="agent-btn" id="abtn-2" onclick="selectAgent(2)">② Trade Promotion</button>
+      <button class="agent-btn" id="abtn-3" onclick="selectAgent(3)">③ Channel Intel</button>
+      <button class="agent-btn" id="abtn-4" onclick="selectAgent(4)">④ Supply Chain</button>
+      <button class="agent-btn" id="abtn-5" onclick="selectAgent(5)">⑤ Regulatory</button>
+      <button class="agent-btn" id="abtn-6" onclick="selectAgent(6)">⑥ Allocation</button>
+      <button class="agent-btn" id="abtn-7" onclick="selectAgent(7)">⑦ Manufacturing</button>
+      <button class="agent-btn" id="abtn-8" onclick="selectAgent(8)">⑧ Business Network</button>
+    </div>
+
+    <!-- Agent 01 -->
+    <div id="ap-1" style="margin-top:10px;">
+      <div class="kpi-row" style="grid-template-columns:repeat(4,1fr);">
+        <div class="kpi-card critical"><div class="kpi-label">Active Anomalies</div><div class="kpi-value critical">2</div><div class="kpi-meta"><span class="status-dot dot-critical"></span>Above IBP P90 threshold</div><div class="kpi-source"><span class="sap-pill">SAP IBP Demand Sensing</span></div></div>
+        <div class="kpi-card blue"><div class="kpi-label">Forecast MAPE</div><div class="kpi-value blue">21.4%</div><div class="kpi-meta"><span class="status-dot dot-good"></span>Industry avg 25–35% · Above avg</div><div class="kpi-source"><span class="sap-pill">SAP IBP Demand · KPI</span></div></div>
+        <div class="kpi-card good"><div class="kpi-label">SKUs Monitored</div><div class="kpi-value good">847</div><div class="kpi-meta"><span class="status-dot dot-good"></span>6 categories · daily sensing</div><div class="kpi-source"><span class="sap-pill">SAP IBP Planning Area</span></div></div>
+        <div class="kpi-card warning"><div class="kpi-label">Incremental Demand</div><div class="kpi-value warning">+840k</div><div class="kpi-meta"><span class="status-dot dot-warning"></span>Units · next 21 days</div><div class="kpi-source"><span class="sap-pill">SAP IBP Demand Sensing Output</span></div></div>
+      </div>
+      <div class="card" style="margin-top:14px;"><div class="card-head"><div class="card-title">SKU Anomaly Detection — Live</div><div class="card-sub">SAP IBP Demand Sensing + SAP CAR POS · Aug 3, 2026</div></div><div class="card-body" style="padding:0;"><table class="data-table"><thead><tr><th>SKU / Brand</th><th>IBP Signal Source</th><th>Δ vs Statistical Baseline</th><th>Outlier Check</th><th>Status</th></tr></thead><tbody><tr><td><strong>ARM &amp; HAMMER Baking Soda 4lb</strong><br><span style="font-size:14px;color:var(--ink-3);">SKU-10024 · York PA → Walmart, Target, Kroger</span></td><td><span class="sap-pill">SAP CAR POS velocity</span> + IBP gradient boosting</td><td style="color:var(--critical);font-weight:700;">+24.8%</td><td style="color:var(--good);font-size:15px;">✓ Outlier correction ran — signal confirmed as genuine sustained uplift</td><td><span class="badge badge-critical">CRITICAL</span></td></tr><tr><td><strong>OxiClean Stain Remover 7.5lb</strong><br><span style="font-size:14px;color:var(--ink-3);">SKU-20089 · Back-to-school early signal</span></td><td><span class="sap-pill">SAP CAR POS</span> + IBP seasonal model</td><td style="color:var(--warning);font-weight:700;">+12.3%</td><td style="color:var(--warning);font-size:15px;">⚠ Within seasonal band — monitoring</td><td><span class="badge badge-warning">WARNING</span></td></tr><tr><td><strong>Vitafusion Women's Multivitamin</strong><br><span style="font-size:14px;color:var(--ink-3);">SKU-40012 · Within normal range</span></td><td><span class="sap-pill">SAP IBP Forecast</span> baseline</td><td style="color:var(--good);font-weight:700;">+1.8%</td><td style="color:var(--good);font-size:15px;">✓ Within ±5% tolerance band</td><td><span class="badge badge-good">ON TRACK</span></td></tr></tbody></table></div></div>
+      <div style="margin-top:12px;padding:14px 18px;background:rgba(57,135,229,.06);border:1px solid rgba(57,135,229,.2);border-radius:10px;font-size:16px;color:var(--ink-2);"><strong style="color:var(--a1);">SAP IBP Demand Sensing — How it works:</strong> Uses Hybrid Gradient Boosting (xGBoost) algorithm. Ingests daily POS data from SAP Customer Activity Repository, sales orders from S/4HANA SD, promotions from TPM, and inventory positions from MM. Generates 4–8 week daily forecast. Automatic outlier detection excludes anomalous historical periods from the learning phase. Source: <span class="sap-pill">SAP Help Portal — Demand Sensing Process</span></div>
+
+      <!-- Agent 01 Layer 2: two-col — Bar Chart + Forecast Table -->
+      <div class="two-col" style="margin-top:14px;">
+        <div class="card">
+          <div class="card-head"><div class="card-title">Forecast MAPE by Category — Aug 2026</div><div class="card-sub">SAP IBP Demand · Illustrative · Industry avg 25–35%</div></div>
+          <div class="card-body" style="padding:12px 16px 8px;">
+            <svg width="100%" viewBox="0 0 360 190" style="display:block;overflow:visible;">
+              <line stroke="rgba(255,255,255,.05)" x1="40" y1="10" x2="340" y2="10"/><line stroke="rgba(255,255,255,.05)" x1="40" y1="50" x2="340" y2="50"/><line stroke="rgba(255,255,255,.05)" x1="40" y1="90" x2="340" y2="90"/><line stroke="rgba(255,255,255,.05)" x1="40" y1="130" x2="340" y2="130"/>
+              <text style="font-size:13px;fill:var(--ink-3);font-family:inherit;" x="36" y="13" text-anchor="end">35%</text>
+              <text style="font-size:13px;fill:var(--ink-3);font-family:inherit;" x="36" y="53" text-anchor="end">25%</text>
+              <text style="font-size:13px;fill:var(--ink-3);font-family:inherit;" x="36" y="93" text-anchor="end">15%</text>
+              <text style="font-size:13px;fill:var(--ink-3);font-family:inherit;" x="36" y="133" text-anchor="end">5%</text>
+              <!-- Target line at 25% (industry avg) -->
+              <line stroke="var(--warning)" stroke-width="1.2" stroke-dasharray="4 3" x1="40" y1="50" x2="340" y2="50"/>
+              <text style="font-size:12px;fill:var(--warning);font-family:inherit;" x="344" y="54">avg</text>
+              <!-- Bars: Laundry 20.8%, Leavening 21.4%, Hair 24.2%, VMS 19.6%, Femcare 26.1% -->
+              <rect x="52" y="52" width="34" height="78" rx="3" fill="var(--a1)" opacity=".75"/>
+              <text style="font-size:12px;fill:var(--ink-2);font-family:inherit;" x="69" y="144" text-anchor="middle">Laundry</text>
+              <text style="font-size:12px;fill:var(--a1);font-family:inherit;font-weight:700;" x="69" y="48" text-anchor="middle">20.8%</text>
+              <rect x="106" y="46" width="34" height="84" rx="3" fill="var(--a1)" opacity=".85"/>
+              <text style="font-size:12px;fill:var(--ink-2);font-family:inherit;" x="123" y="144" text-anchor="middle">Leavening</text>
+              <text style="font-size:12px;fill:var(--a1);font-family:inherit;font-weight:700;" x="123" y="42" text-anchor="middle">21.4%</text>
+              <rect x="160" y="30" width="34" height="100" rx="3" fill="var(--warning)" opacity=".8"/>
+              <text style="font-size:12px;fill:var(--ink-2);font-family:inherit;" x="177" y="144" text-anchor="middle">Hair</text>
+              <text style="font-size:12px;fill:var(--warning);font-family:inherit;font-weight:700;" x="177" y="26" text-anchor="middle">24.2%</text>
+              <rect x="214" y="58" width="34" height="72" rx="3" fill="var(--a3)" opacity=".8"/>
+              <text style="font-size:12px;fill:var(--ink-2);font-family:inherit;" x="231" y="144" text-anchor="middle">VMS</text>
+              <text style="font-size:12px;fill:var(--a3);font-family:inherit;font-weight:700;" x="231" y="54" text-anchor="middle">19.6%</text>
+              <rect x="268" y="22" width="34" height="108" rx="3" fill="var(--critical)" opacity=".75"/>
+              <text style="font-size:12px;fill:var(--ink-2);font-family:inherit;" x="285" y="144" text-anchor="middle">Femcare</text>
+              <text style="font-size:12px;fill:var(--critical);font-family:inherit;font-weight:700;" x="285" y="18" text-anchor="middle">26.1%</text>
+            </svg>
+            <div style="font-size:14px;color:var(--ink-3);margin-top:4px;">Dashed line = CPG industry average MAPE 25–35% (AlixPartners 2024). All categories performing above average.</div>
+          </div>
+        </div>
+        <div class="card">
+          <div class="card-head"><div class="card-title">8-Week Rolling Forecast — ARM &amp; HAMMER Baking Soda</div><div class="card-sub">SAP IBP Demand Sensing Output · Illustrative · Units</div></div>
+          <div class="card-body" style="padding:0;">
+            <table class="data-table" style="font-size:16px;">
+              <thead><tr><th>Week</th><th style="text-align:right;">Baseline P50</th><th style="text-align:right;">IBP Adjusted P50</th><th style="text-align:right;">P90 Upside</th><th style="text-align:right;">Δ Signal</th><th style="text-align:right;">Accuracy</th></tr></thead>
+              <tbody id="sku-forecast-body"></tbody>
+            </table>
+            <div style="padding:10px 14px;font-size:14px;color:var(--ink-3);">Baseline P50 = Statistical model only. Adjusted P50 = IBP Demand Sensing (POS + order signals). P90 = Upper demand ceiling. Source: SAP IBP Help Portal.</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Agent 02 -->
+    <div id="ap-2" style="display:none;margin-top:10px;">
+      <div class="kpi-row" style="grid-template-columns:repeat(4,1fr);">
+        <div class="kpi-card blue"><div class="kpi-label">Active Promotions</div><div class="kpi-value blue">28</div><div class="kpi-meta"><span class="status-dot dot-good"></span>8 retail partners</div><div class="kpi-source"><span class="sap-pill">SAP TPM (Trade Promo Mgmt)</span></div></div>
+        <div class="kpi-card good"><div class="kpi-label">Portfolio ROI</div><div class="kpi-value good">38%</div><div class="kpi-meta"><span class="status-dot dot-good"></span>CPG avg 20–40% · On benchmark</div><div class="kpi-source"><span class="sap-pill">SAP CAR + TPM Analytics</span></div></div>
+        <div class="kpi-card critical"><div class="kpi-label">Below Break-Even</div><div class="kpi-value critical">4</div><div class="kpi-meta"><span class="status-dot dot-critical"></span>ROI &lt;10% · $3.2M at risk</div><div class="kpi-source"><span class="sap-pill">SAP TPM Event Simulation</span></div></div>
+        <div class="kpi-card warning"><div class="kpi-label">Q3 Trade Spend</div><div class="kpi-value warning">$68.4M</div><div class="kpi-meta"><span class="status-dot dot-warning"></span>~18% of Net Revenue</div><div class="kpi-source"><span class="sap-pill">SAP CO-PA / FI-CO</span></div></div>
+      </div>
+      <div class="card" style="margin-top:14px;"><div class="card-head"><div class="card-title">Promotion ROI Leaderboard — Q3 2026</div><div class="card-sub">SAP TPM Event Simulation + SAP CAR Baseline Lift · Illustrative</div></div><div class="card-body" style="padding:0;"><table class="data-table"><thead><tr><th>Promotion</th><th>Retailer</th><th>Trade Spend</th><th>Incremental ROI</th><th>TPM Recommendation</th></tr></thead><tbody><tr><td><strong>ARM &amp; HAMMER</strong> Buy 2 Get 1</td><td>Walmart</td><td>$4.2M</td><td style="color:var(--good);font-weight:700;">114% ROI</td><td><span class="badge badge-good">PROCEED</span></td></tr><tr><td><strong>OxiClean</strong> 15% off</td><td>Kroger</td><td>$3.6M</td><td style="color:var(--warning);font-weight:700;">-8% ROI</td><td><span class="badge badge-critical">CANCEL</span></td></tr><tr><td><strong>Batiste</strong> BOGO 50%</td><td>CVS</td><td>$1.4M</td><td style="color:var(--warning);font-weight:700;">-14% ROI</td><td><span class="badge badge-critical">CANCEL</span></td></tr><tr><td><strong>First Response</strong> $2 off</td><td>Walgreens</td><td>$0.8M</td><td style="color:var(--warning);font-weight:700;">-22% ROI</td><td><span class="badge badge-critical">CANCEL</span></td></tr></tbody></table></div></div>
+    </div>
+
+    <!-- Agent 02 Layer 2: Gantt + Waterfall -->
+    <div id="ap-2-extra" style="display:none;margin-top:14px;"><!-- shown/hidden with ap-2 via JS --></div>
+
+    <!-- Agent 03 -->
+    <div id="ap-3" style="display:none;margin-top:10px;">
+      <div class="kpi-row" style="grid-template-columns:repeat(4,1fr);">
+        <div class="kpi-card good"><div class="kpi-label">Customer NPS Index</div><div class="kpi-value" style="color:var(--a3);">62</div><div class="kpi-meta"><span class="status-dot dot-good"></span>CPG median 61% · On benchmark</div><div class="kpi-source"><span class="sap-pill">SAP Emarsys Customer Eng.</span></div></div>
+        <div class="kpi-card blue"><div class="kpi-label">POS Velocity (All Brands)</div><div class="kpi-value blue">+6.2%</div><div class="kpi-meta"><span class="status-dot dot-good"></span>vs prior 8-week baseline</div><div class="kpi-source"><span class="sap-pill">SAP Customer Activity Repository</span></div></div>
+        <div class="kpi-card warning"><div class="kpi-label">Competitor Price Moves</div><div class="kpi-value warning">2</div><div class="kpi-meta"><span class="status-dot dot-warning"></span>SBC category · Requires response</div><div class="kpi-source"><span class="ext-pill">External: Nielsen / IRI feed</span></div></div>
+        <div class="kpi-card blue"><div class="kpi-label">Retail Partners (EDI)</div><div class="kpi-value blue">34</div><div class="kpi-meta"><span class="status-dot dot-good"></span>POS data daily via BN</div><div class="kpi-source"><span class="sap-pill">SAP Business Network EDI</span></div></div>
+      </div>
+      <!-- Two-col: POS Velocity bars + Competitor table -->
+      <div class="two-col" style="margin-top:14px;">
+        <div class="card">
+          <div class="card-head"><div class="card-title">POS Velocity by Brand — SAP CAR</div><div class="card-sub">SAP Customer Activity Repository · 8-week vs prior period · Illustrative</div></div>
+          <div class="card-body" id="sentiment-bars"></div>
+        </div>
+        <div class="card">
+          <div class="card-head"><div class="card-title">Competitive Intelligence — Active Signals</div><div class="card-sub"><span class="ext-pill">External: Nielsen / IRI</span> integrated via SAP BTP</div></div>
+          <div class="card-body" style="padding:0;">
+            <table class="data-table">
+              <thead><tr><th>Competitor</th><th>Action Detected</th><th>C&amp;D Brand at Risk</th><th>Urgency</th></tr></thead>
+              <tbody>
+                <tr><td><strong>P&amp;G</strong><br><span style="font-size:14px;color:var(--ink-3);">SBC / Baking Soda category</span></td><td>New SKU shelf placement · Walmart · Aug 1</td><td>ARM &amp; HAMMER Baking Soda</td><td><span class="badge badge-critical">NOW</span></td></tr>
+                <tr><td><strong>Unilever</strong><br><span style="font-size:14px;color:var(--ink-3);">Dry shampoo category</span></td><td>Price reduction −12% on competing dry shampoo</td><td>Batiste</td><td><span class="badge badge-warning">THIS WEEK</span></td></tr>
+                <tr><td><strong>Reckitt</strong><br><span style="font-size:14px;color:var(--ink-3);">Oral care / whitening</span></td><td>New product launch — whitening category</td><td>Waterpik / Spinbrush</td><td><span class="badge badge-blue">MONITOR</span></td></tr>
+              </tbody>
+            </table>
+            <div style="padding:10px 14px;font-size:14px;color:var(--ink-3);">⚠ Competitor data requires external market intelligence feed (Nielsen, IRI, or Numerator). Not a native SAP data source. Integrated via SAP BTP Data Ingestion pipeline.</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Agent 04 -->
+    <div id="ap-4" style="display:none;margin-top:10px;">
+      <div class="kpi-row" style="grid-template-columns:repeat(4,1fr);">
+        <div class="kpi-card critical"><div class="kpi-label">Ariba Risk Score (Max)</div><div class="kpi-value critical">81/100</div><div class="kpi-meta"><span class="status-dot dot-critical"></span>Tier-1 SBC supplier · Force majeure</div><div class="kpi-source"><span class="sap-pill">SAP Ariba Risk &amp; Performance Mgmt</span></div></div>
+        <div class="kpi-card warning"><div class="kpi-label">SBC Inventory Gap</div><div class="kpi-value warning">1,200 MT</div><div class="kpi-meta"><span class="status-dot dot-warning"></span>Run-out Aug 21 · 18 days</div><div class="kpi-source"><span class="sap-pill">SAP IBP Supply Planning MRP</span></div></div>
+        <div class="kpi-card warning"><div class="kpi-label">SBC Spot Market Price</div><div class="kpi-value warning">↑ +8.2%</div><div class="kpi-meta"><span class="status-dot dot-warning"></span>vs 90-day average</div><div class="kpi-source"><span class="ext-pill">External: S&P Global Commodity</span></div></div>
+        <div class="kpi-card blue"><div class="kpi-label">Suppliers Tracked</div><div class="kpi-value blue">142</div><div class="kpi-meta"><span class="status-dot dot-good"></span>T1: 38 · T2: 104</div><div class="kpi-source"><span class="sap-pill">SAP Ariba Supplier Mgmt</span></div></div>
+      </div>
+      <div class="card" style="margin-top:14px;"><div class="card-head"><div class="card-title">Supplier Risk Heatmap — SAP Ariba Risk &amp; Performance Management</div><div class="card-sub">Illustrative risk scores · Aug 3, 2026</div></div><div class="card-body"><div class="risk-grid"><div class="risk-cell high"><div class="risk-supplier">Tier-1 SBC Supplier</div><div class="risk-commodity">Sodium Bicarbonate</div><div class="risk-score">81/100</div><div style="font-size:14px;color:var(--ink-3);margin-top:4px;">Force majeure · Ariba auto-elevated</div></div><div class="risk-cell high"><div class="risk-supplier">Chevron Phillips</div><div class="risk-commodity">HDPE Resin</div><div class="risk-score">62/100</div><div style="font-size:14px;color:var(--ink-3);margin-top:4px;">ILWU logistics risk · West Coast</div></div><div class="risk-cell medium"><div class="risk-supplier">BASF SE</div><div class="risk-commodity">Surfactants</div><div class="risk-score">34/100</div><div style="font-size:14px;color:var(--ink-3);margin-top:4px;">Q4 capacity — monitoring</div></div><div class="risk-cell low"><div class="risk-supplier">Tata Chemicals</div><div class="risk-commodity">SBC Alternative</div><div class="risk-score">18/100</div><div style="font-size:14px;color:var(--ink-3);margin-top:4px;">BN capacity confirmed ✓</div></div><div class="risk-cell low"><div class="risk-supplier">Solvay</div><div class="risk-commodity">SBC Tertiary</div><div class="risk-score">24/100</div><div style="font-size:14px;color:var(--ink-3);margin-top:4px;">BN Discovery — qualifying</div></div><div class="risk-cell low"><div class="risk-supplier">INEOS</div><div class="risk-commodity">Packaging Polymers</div><div class="risk-score">21/100</div><div style="font-size:14px;color:var(--ink-3);margin-top:4px;">On-track</div></div></div></div></div>
+    </div>
+
+    <!-- Agent 04: Disruption Events Table -->
+    <!-- (added to ap-4 section above via card appended here) -->
+    <div id="ap-4-disruption" style="display:none;margin-top:12px;">
+      <div class="card"><div class="card-head"><div class="card-title">Active Disruption Events &amp; Recommended Actions</div><div class="card-sub">SAP Ariba Risk Management + SAP IBP MRP Exceptions · Illustrative</div></div><div class="card-body" style="padding:0;"><table class="data-table"><thead><tr><th>Event</th><th>Commodity</th><th>Impact Window</th><th>Gap</th><th>Agent Recommendation</th><th>Priority</th></tr></thead><tbody><tr><td><strong>Tier-1 SBC Supplier Force Majeure</strong><br><span style="font-size:14px;color:var(--ink-3);">Natural disaster — Ariba risk score 38→81</span></td><td>Sodium Bicarbonate</td><td>Aug–Oct 2026</td><td style="color:var(--critical);font-weight:700;">1,200 MT</td><td>Activate Tata Chemicals (BN confirmed) + spot buy 400 MT via Ariba Sourcing</td><td><span class="badge badge-critical">CRITICAL</span></td></tr><tr><td><strong>ILWU West Coast Port Risk</strong><br><span style="font-size:14px;color:var(--ink-3);">Strike action threatened Aug 15</span></td><td>HDPE Logistics</td><td>Aug 10–20</td><td style="color:var(--warning);font-weight:700;">2 containers</td><td>Reroute CTR-0841/0842 to Newark NJ via SAP BN Logistics carrier network</td><td><span class="badge badge-warning">TODAY</span></td></tr><tr><td><strong>BASF Surfactant Capacity Constraint</strong><br><span style="font-size:14px;color:var(--ink-3);">Q4 volume at risk — IBP MRP exception</span></td><td>Surfactants</td><td>Q4 2026</td><td style="color:var(--a1);font-weight:700;">Monitoring</td><td>Initiate SAP BN Planning Collaboration capacity check with BASF</td><td><span class="badge badge-blue">THIS WEEK</span></td></tr></tbody></table></div></div>
+    </div>
+
+    <!-- Agent 05 — Full 3-layer panel -->
+    <div id="ap-5" style="display:none;margin-top:10px;">
+      <div class="kpi-row" style="grid-template-columns:repeat(4,1fr);">
+        <div class="kpi-card good"><div class="kpi-label">PLM Compliance Rate</div><div class="kpi-value" style="color:var(--a5);">97.6%</div><div class="kpi-meta"><span class="status-dot dot-good"></span>1,240 SKUs</div><div class="kpi-source"><span class="sap-pill">SAP PLM Label Mgmt</span></div></div>
+        <div class="kpi-card warning"><div class="kpi-label">QM Pending Reviews</div><div class="kpi-value warning">3</div><div class="kpi-meta"><span class="status-dot dot-warning"></span>Q4 launch risk</div><div class="kpi-source"><span class="sap-pill">SAP QM Inspection Lots</span></div></div>
+        <div class="kpi-card critical"><div class="kpi-label">DM Batch Hold</div><div class="kpi-value critical">48k</div><div class="kpi-meta"><span class="status-dot dot-critical"></span>Vitafusion VF-003</div><div class="kpi-source"><span class="sap-pill">SAP DM + SAP QM</span></div></div>
+        <div class="kpi-card blue"><div class="kpi-label">Avg Review Cycle</div><div class="kpi-value blue">4.2d</div><div class="kpi-meta"><span class="status-dot dot-good"></span>−38% vs manual process</div><div class="kpi-source"><span class="sap-pill">SAP PLM Workflow</span></div></div>
+      </div>
+      <div class="two-col" style="margin-top:14px;">
+        <div class="card">
+          <div class="card-head"><div class="card-title">Pending Compliance Actions</div><div class="card-sub">SAP PLM Label Mgmt + SAP QM · Illustrative</div></div>
+          <div class="card-body"><div class="check-list" id="compliance-checks"></div></div>
+        </div>
+        <div class="card">
+          <div class="card-head"><div class="card-title">NPD Compliance Pipeline — Q4 2026</div><div class="card-sub">SAP PLM + SAP EHS · Illustrative</div></div>
+          <div class="card-body" style="padding:0;">
+            <table class="data-table" style="font-size:16px;">
+              <thead><tr><th>Product</th><th>Reg. Agency</th><th>Stage</th><th>Launch</th><th>Risk</th></tr></thead>
+              <tbody>
+                <tr><td><strong>Vitafusion Probiotic+ (revised)</strong></td><td>FDA 21 CFR Part 101</td><td><span class="badge badge-critical">Label Revision</span></td><td>Sep 1, 2026</td><td><span class="badge badge-critical">HIGH</span></td></tr>
+                <tr><td><strong>ARM &amp; HAMMER Clean &amp; Natural</strong></td><td>EPA Safer Choice</td><td><span class="badge badge-warning">Under Review</span></td><td>Sep 15, 2026</td><td><span class="badge badge-warning">MED</span></td></tr>
+                <tr><td><strong>Nair Brazilian Spa Clay</strong></td><td>FTC Substantiation</td><td><span class="badge badge-warning">Claim Review</span></td><td>Oct 2026</td><td><span class="badge badge-warning">MED</span></td></tr>
+                <tr><td><strong>Batiste Invisible</strong></td><td>Health Canada</td><td><span class="badge badge-good">Cleared</span></td><td>Jul 28 ✓</td><td><span class="badge badge-good">LOW</span></td></tr>
+                <tr><td><strong>OxiClean Baby</strong></td><td>EU Biocides / ECHA</td><td><span class="badge badge-good">Cleared</span></td><td>Jul 15 ✓</td><td><span class="badge badge-good">LOW</span></td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Agent 06 — Full 3-layer panel -->
+    <div id="ap-6" style="display:none;margin-top:10px;">
+      <div class="kpi-row" style="grid-template-columns:repeat(4,1fr);">
+        <div class="kpi-card good"><div class="kpi-label">aATP Fill Rate</div><div class="kpi-value" style="color:var(--a6);">94.3%</div><div class="kpi-meta"><span class="status-dot dot-good"></span>CPG avg 94.1% Q3 2024 · At benchmark</div><div class="kpi-source"><span class="sap-pill">SAP S/4HANA aATP</span></div></div>
+        <div class="kpi-card critical"><div class="kpi-label">Uncovered Demand</div><div class="kpi-value critical">142k</div><div class="kpi-meta"><span class="status-dot dot-critical"></span>Units · ARM &amp; HAMMER</div><div class="kpi-source"><span class="sap-pill">SAP IBP Allocation Planning</span></div></div>
+        <div class="kpi-card warning"><div class="kpi-label">PAL Quota (Walmart)</div><div class="kpi-value warning">91%</div><div class="kpi-meta"><span class="status-dot dot-warning"></span>18 days remaining</div><div class="kpi-source"><span class="sap-pill">SAP aATP PAL Quotas</span></div></div>
+        <div class="kpi-card blue"><div class="kpi-label">IBP→S4 Sync Cycle</div><div class="kpi-value blue">15min</div><div class="kpi-meta"><span class="status-dot dot-good"></span>via SAP CIG OData</div><div class="kpi-source"><span class="sap-pill">SAP Cloud Integration Gateway</span></div></div>
+      </div>
+      <div class="two-col" style="margin-top:14px;">
+        <div class="card">
+          <div class="card-head"><div class="card-title">PAL Quota Utilisation by Channel</div><div class="card-sub">SAP aATP · ARM &amp; HAMMER Baking Soda · Aug–Sep 2026 · Illustrative</div></div>
+          <div class="card-body">
+            <div class="alloc-phase-header">📦 Product Allocation (PAL) Hard Caps</div>
+            <div class="alloc-tier-row"><div class="alloc-tier-label">Walmart</div><div class="alloc-quota-track"><div class="alloc-quota-fill" style="width:91%;background:var(--critical);"></div></div><div class="alloc-pct" style="color:var(--critical);">91%</div><div class="alloc-units">364k / 400k</div></div>
+            <div class="alloc-tier-row"><div class="alloc-tier-label">Target</div><div class="alloc-quota-track"><div class="alloc-quota-fill" style="width:74%;background:var(--warning);"></div></div><div class="alloc-pct" style="color:var(--warning);">74%</div><div class="alloc-units">222k / 300k</div></div>
+            <div class="alloc-tier-row"><div class="alloc-tier-label">Amazon</div><div class="alloc-quota-track"><div class="alloc-quota-fill" style="width:42%;background:var(--a6);"></div></div><div class="alloc-pct" style="color:var(--a6);">42%</div><div class="alloc-units">84k / 200k</div></div>
+            <div class="alloc-tier-row"><div class="alloc-tier-label">Kroger</div><div class="alloc-quota-track"><div class="alloc-quota-fill" style="width:61%;background:var(--a3);"></div></div><div class="alloc-pct" style="color:var(--a3);">61%</div><div class="alloc-units">122k / 200k</div></div>
+            <div class="alloc-tier-row"><div class="alloc-tier-label">Walgreens</div><div class="alloc-quota-track"><div class="alloc-quota-fill" style="width:55%;background:var(--a3);"></div></div><div class="alloc-pct" style="color:var(--a3);">55%</div><div class="alloc-units">55k / 100k</div></div>
+            <div class="alloc-tier-row"><div class="alloc-tier-label">CVS</div><div class="alloc-quota-track"><div class="alloc-quota-fill" style="width:48%;background:var(--a3);"></div></div><div class="alloc-pct" style="color:var(--a3);">48%</div><div class="alloc-units">48k / 100k</div></div>
+            <div style="margin-top:12px;padding:10px 14px;background:rgba(10,126,194,.07);border:1px solid rgba(10,126,194,.2);border-radius:8px;font-size:15px;color:var(--ink-2);"><strong style="color:var(--a6);">Agent 06 Recommendation:</strong> Shift 116k units of unused Amazon quota to Walmart. Trigger IBP Allocation Adjustment run → push updated PAL via <code>API_PRODUCT_ALLOCATION_OBJECT_SRV</code> → activate in S/4HANA aATP within 15 minutes.</div>
+          </div>
+        </div>
+        <div class="card">
+          <div class="card-head"><div class="card-title">aATP Feature Status</div><div class="card-sub">SAP S/4HANA Advanced ATP — Check Group Z_CD_ALLOC · Illustrative</div></div>
+          <div class="card-body" style="padding:0;">
+            <table class="data-table" style="font-size:16px;">
+              <thead><tr><th>aATP Feature</th><th>Status</th><th>Last Action</th><th>Result</th></tr></thead>
+              <tbody>
+                <tr><td><strong>PAL</strong><br><span style="font-size:13px;color:var(--ink-3);">Product Allocation</span></td><td><span class="badge badge-warning">NEAR LIMIT</span></td><td>Today 04:12</td><td>Walmart 91% consumed</td></tr>
+                <tr><td><strong>PAC</strong><br><span style="font-size:13px;color:var(--ink-3);">Product Alloc. Check</span></td><td><span class="badge badge-good">ACTIVE</span></td><td>Real-time</td><td>All orders checked</td></tr>
+                <tr><td><strong>BOP</strong><br><span style="font-size:13px;color:var(--ink-3);">Backorder Processing</span></td><td><span class="badge badge-critical">TRIGGER NOW</span></td><td>Yesterday</td><td>28 WMT orders pending</td></tr>
+                <tr><td><strong>SUP</strong><br><span style="font-size:13px;color:var(--ink-3);">Supply Protection</span></td><td><span class="badge badge-good">ACTIVE</span></td><td>Today</td><td>Tier-A customers protected</td></tr>
+                <tr><td><strong>ABC</strong><br><span style="font-size:13px;color:var(--ink-3);">Rule-Based ATP Check</span></td><td><span class="badge badge-blue">STANDBY</span></td><td>—</td><td>Available if PAL lifted</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Agent 07 — Full 3-layer panel -->
+    <div id="ap-7" style="display:none;margin-top:10px;">
+      <div class="kpi-row" style="grid-template-columns:repeat(4,1fr);">
+        <div class="kpi-card warning"><div class="kpi-label">Plant OEE (avg)</div><div class="kpi-value warning">72%</div><div class="kpi-meta"><span class="status-dot dot-warning"></span>CPG benchmark 68–73% typical</div><div class="kpi-source"><span class="sap-pill">SAP Digital Manufacturing</span></div></div>
+        <div class="kpi-card critical"><div class="kpi-label">Lines in Downtime</div><div class="kpi-value critical">1</div><div class="kpi-meta"><span class="status-dot dot-critical"></span>York PA Line 4 · SAP PM created</div><div class="kpi-source"><span class="sap-pill">SAP DM + SAP PM</span></div></div>
+        <div class="kpi-card warning"><div class="kpi-label">SBC Burn Rate</div><div class="kpi-value warning">48 MT/d</div><div class="kpi-meta"><span class="status-dot dot-warning"></span>Run-out Aug 21 · DM actuals</div><div class="kpi-source"><span class="sap-pill">SAP DM Production Order Actuals</span></div></div>
+        <div class="kpi-card good"><div class="kpi-label">AI Visual Inspection</div><div class="kpi-value good">99.1%</div><div class="kpi-meta"><span class="status-dot dot-good"></span>Vitafusion label QC pass rate</div><div class="kpi-source"><span class="sap-pill">SAP DM Vision AI</span></div></div>
+      </div>
+      <div class="card" style="margin-top:14px;">
+        <div class="card-head"><div class="card-title">Active Production Orders — Priority View</div><div class="card-sub">SAP Digital Manufacturing + SAP PP · Aug 3, 2026 · Illustrative</div></div>
+        <div class="card-body" style="padding:0;">
+          <table class="data-table">
+            <thead><tr><th>Order</th><th>Product</th><th>Plant / Line</th><th>Qty</th><th>Progress</th><th>OEE</th><th>DM Signal</th></tr></thead>
+            <tbody>
+              <tr><td style="color:var(--critical);font-weight:700;">PO-2026-08-0342</td><td><strong>A&amp;H Baking Soda 4lb</strong></td><td>York PA / Line 4</td><td>240k</td><td><div class="bar-track" style="width:80px;display:inline-block;"><div class="bar-fill" style="width:28%;background:var(--warning);height:7px;border-radius:4px;"></div></div> 28%</td><td style="color:var(--critical);">71% ⚠</td><td style="font-size:14px;color:var(--a7);">SAP PM Notif. → Agent 06: −67k units</td></tr>
+              <tr><td>PO-2026-08-0341</td><td><strong>A&amp;H Baking Soda 4lb</strong></td><td>York PA / Line 3</td><td>180k</td><td><div class="bar-track" style="width:80px;display:inline-block;"><div class="bar-fill" style="width:62%;background:var(--a3);height:7px;border-radius:4px;"></div></div> 62%</td><td style="color:var(--warning);">74%</td><td style="font-size:14px;color:var(--a7);">→ Agent 01: supply on track</td></tr>
+              <tr><td>PO-2026-08-0338</td><td><strong>Vitafusion Probiotic+</strong></td><td>Lakewood / Line 6</td><td>96k</td><td><div class="bar-track" style="width:80px;display:inline-block;"><div class="bar-fill" style="width:50%;background:var(--warning);height:7px;border-radius:4px;"></div></div> 50%</td><td style="color:var(--a3);">83%</td><td style="font-size:14px;color:var(--a5);">→ Agent 05: Batch VF-003 QM hold</td></tr>
+              <tr><td>PO-2026-08-0335</td><td><strong>Batiste Dry Shampoo</strong></td><td>Lakewood / Line 5</td><td>120k</td><td><div class="bar-track" style="width:80px;display:inline-block;"><div class="bar-fill" style="width:88%;background:var(--a3);height:7px;border-radius:4px;"></div></div> 88%</td><td style="color:var(--good);">91%</td><td style="font-size:14px;color:var(--a7);">→ Agent 06: on-time allocation</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+      <div style="margin-top:12px;padding:12px 16px;background:rgba(0,151,167,.06);border:1px solid rgba(0,151,167,.2);border-radius:10px;font-size:15px;color:var(--ink-2);"><strong style="color:var(--a7);">SAP Digital Manufacturing capabilities used:</strong> Production order execution · OEE calculation (Availability × Performance × Quality) · AI visual inspection (camera integration) · Equipment sensor feed → SAP PM notification auto-create · Batch traceability → SAP QM inspection lot · SBC consumption actual → SAP IBP supply replan trigger. CPG OEE benchmark 68–73% typical, 82–85% world-class (TeepTrak 2026).</div>
+    </div>
+
+    <!-- Agent 08 -->
+    <div id="ap-8" style="display:none;margin-top:10px;">
+      <div class="kpi-row" style="grid-template-columns:repeat(4,1fr);">
+        <div class="kpi-card critical"><div class="kpi-label">BN Constraint Signal</div><div class="kpi-value critical">HIGH</div><div class="kpi-meta"><span class="status-dot dot-critical"></span>SBC procurement · Multiple members</div><div class="kpi-source"><span class="sap-pill">SAP BN Supply Chain Collab</span></div></div>
+        <div class="kpi-card good"><div class="kpi-label">Forecast Shared</div><div class="kpi-value" style="color:var(--a8);">12</div><div class="kpi-meta"><span class="status-dot dot-good"></span>Suppliers · 8-wk IBP rolling horizon</div><div class="kpi-source"><span class="sap-pill">SAP BN Planning Collaboration</span></div></div>
+        <div class="kpi-card good"><div class="kpi-label">PO Confirmation Rate</div><div class="kpi-value good">94.2%</div><div class="kpi-meta"><span class="status-dot dot-good"></span>342 open POs on network</div><div class="kpi-source"><span class="sap-pill">SAP BN for Procurement</span></div></div>
+        <div class="kpi-card warning"><div class="kpi-label">Containers Tracked</div><div class="kpi-value warning">24</div><div class="kpi-meta"><span class="status-dot dot-warning"></span>3 critical HDPE · ILWU risk</div><div class="kpi-source"><span class="sap-pill">SAP BN for Logistics</span></div></div>
+      </div>
+      <div class="three-col" style="margin-top:14px;">
+        <div class="card"><div class="card-head"><div class="card-title">Planning Collaboration</div><div class="card-sub">SAP BN Supply Chain Collab — verified capability</div></div><div class="card-body"><div class="bn-phase-header">📊 IBP Demand Signals → Suppliers</div><p style="font-size:16px;color:var(--ink-2);line-height:1.6;margin-bottom:12px;">C&D's 8-week IBP rolling forecast shared with 12 suppliers via SAP Business Network Planning Collaboration. Suppliers commit to capacity and return production status. <strong style="color:var(--good);">This is a confirmed SAP BN capability</strong> — not invented.</p><div class="alloc-tier-row" style="font-size:16px;"><div class="alloc-tier-label">Tata Chemicals</div><div class="alloc-quota-track"><div class="alloc-quota-fill" style="width:100%;background:var(--good);"></div></div><div class="alloc-pct" style="color:var(--good);">100%</div><div class="alloc-units">800 MT ✓</div></div><div class="alloc-tier-row" style="font-size:16px;"><div class="alloc-tier-label">BASF</div><div class="alloc-quota-track"><div class="alloc-quota-fill" style="width:86%;background:var(--a3);"></div></div><div class="alloc-pct" style="color:var(--a3);">86%</div><div class="alloc-units">Q4 volume</div></div><div class="alloc-tier-row" style="font-size:16px;"><div class="alloc-tier-label">Chevron Phillips</div><div class="alloc-quota-track"><div class="alloc-quota-fill" style="width:72%;background:var(--a4);"></div></div><div class="alloc-pct" style="color:var(--a4);">72%</div><div class="alloc-units">HDPE partial</div></div></div></div>
+        <div class="card"><div class="card-head"><div class="card-title">Procurement Constraint Signal</div><div class="card-sub">SAP BN Component Planning Collab</div></div><div class="card-body"><div class="bn-phase-header">⚠ SBC Supply Pressure — Multi-Member</div><p style="font-size:16px;color:var(--ink-2);line-height:1.6;margin-bottom:12px;">SAP Business Network's <strong>component planning collaboration</strong> surfaces when multiple network members show compressed supplier capacity commitments for the same commodity — enabling earlier shortage response. <span style="color:var(--warning);">Specific buyer identity is anonymised on the network.</span></p><div class="bn-scarcity-row"><div class="bn-buyer-name" style="color:var(--critical);">SBC Market · High Pressure</div><div class="bn-urgency-bar"><div class="bn-urgency-fill" style="width:88%;background:var(--critical);"></div></div><div class="bn-urgency-label" style="color:var(--critical);">HIGH</div></div><div class="bn-scarcity-row"><div class="bn-buyer-name" style="color:var(--warning);">Alt Supplier Pool</div><div class="bn-urgency-bar"><div class="bn-urgency-fill" style="width:52%;background:var(--warning);"></div></div><div class="bn-urgency-label" style="color:var(--warning);">MEDIUM</div></div><div style="margin-top:12px;font-size:16px;color:var(--ink-2);"><strong style="color:var(--a8);">BN Discovery:</strong> Searching UNSPSC 12141500 (Sodium compounds) across 190+ countries · 20,000+ categories supported</div></div></div>
+        <div class="card"><div class="card-head"><div class="card-title">Freight Track / Trace</div><div class="card-sub">SAP BN for Logistics — Q3 2024 GA</div></div><div class="card-body"><div class="bn-phase-header">🚢 Inbound Container Tracker</div><table class="data-table" style="margin-bottom:12px;"><thead><tr><th>Container</th><th>Material</th><th>ETA</th><th>Risk</th></tr></thead><tbody><tr><td style="color:var(--critical);font-weight:700;">CTR-0841</td><td>HDPE Resin</td><td style="color:var(--critical);">Aug 10 ⚠</td><td><span class="badge badge-critical">REROUTE</span></td></tr><tr><td style="color:var(--critical);font-weight:700;">CTR-0842</td><td>HDPE Resin</td><td style="color:var(--critical);">Aug 10 ⚠</td><td><span class="badge badge-critical">REROUTE</span></td></tr><tr><td style="color:var(--warning);">CTR-0843</td><td>HDPE Resin</td><td style="color:var(--warning);">Aug 12</td><td><span class="badge badge-warning">MONITOR</span></td></tr><tr><td>CTR-0822</td><td>BASF Surfactants</td><td style="color:var(--good);">Aug 8</td><td><span class="badge badge-good">ON TRACK</span></td></tr></tbody></table><div style="font-size:15px;color:var(--ink-2);padding:8px 12px;background:rgba(250,178,25,.06);border:1px solid rgba(250,178,25,.2);border-radius:8px;">ILWU West Coast strike risk (historically recurring — last action 2023). SAP BN Logistics integration released Q3 2024. Reroute to Newark NJ via carrier network. Premium: $28k vs ~$180k downtime risk.</div></div></div>
+      </div>
+    </div>
+  </div><!-- /deepdive -->
+
+  <!-- ════ ACTION QUEUE ════ -->
+  <div id="tab-actions" style="display:none;">
+    <div class="kpi-row" style="grid-template-columns:repeat(4,1fr);">
+      <div class="kpi-card critical"><div class="kpi-label">Critical Actions</div><div class="kpi-value critical">4</div><div class="kpi-meta"><span class="status-dot dot-critical"></span>Immediate response required</div></div>
+      <div class="kpi-card warning"><div class="kpi-label">Today Actions</div><div class="kpi-value warning">4</div><div class="kpi-meta"><span class="status-dot dot-warning"></span>Within business hours</div></div>
+      <div class="kpi-card blue"><div class="kpi-label">This Week</div><div class="kpi-value blue">4</div><div class="kpi-meta"><span class="status-dot dot-good"></span>Strategic actions</div></div>
+      <div class="kpi-card good"><div class="kpi-label">Completed (7d)</div><div class="kpi-value good">22</div><div class="kpi-meta"><span class="status-dot dot-good"></span>Avg resolution 1.9 hrs</div></div>
+    </div>
+    <div class="section-label" style="margin-top:14px;">Prioritised Action Queue — Joule AI + 8 Agents · Aug 3, 2026 · All actions SAP-executable</div>
+    <div class="action-list">
+      <div class="action-item"><div class="action-prio prio-critical">CRITICAL</div><div class="action-body"><div class="action-title">Agent 08 + 04 — Activate Tata Chemicals via SAP Business Network: 800 MT SBC (BN Capacity Confirmed)</div><div class="action-desc">SAP Business Network Planning Collaboration has received capacity commitment from Tata Chemicals: 800 MT SBC, Aug 18 delivery. BN component planning module shows compressed supply across market. Execute Ariba sourcing event and PO issuance immediately. Agent 08 has pre-populated Ariba PO draft.</div><div class="action-meta"><span class="badge badge-a8">Agent 08</span><span class="badge badge-amber">Agent 04</span><span class="sap-pill">SAP Ariba Procurement</span><span class="sap-pill">SAP BN Planning Collab</span><span style="font-size:15px;color:var(--ink-3);">Assigned to: Procurement · ETA: Today EOD</span></div></div></div>
+      <div class="action-item"><div class="action-prio prio-critical">CRITICAL</div><div class="action-body"><div class="action-title">Agent 01 + 06 — Emergency Replenishment: +840k Units ARM &amp; HAMMER via IBP Replan + aATP PAL Increase</div><div class="action-desc">SAP IBP Demand Sensing confirmed +24.8% sustained POS uplift (outlier correction cleared). Emergency production orders on Lines 3 &amp; 4 (Line 4 pending PM recovery). IBP supply plan rerun required. Push updated PAL quotas to S/4HANA aATP via CIG OData API.</div><div class="action-meta"><span class="badge badge-blue">Agent 01</span><span class="badge badge-a6">Agent 06</span><span class="sap-pill">SAP IBP Supply Planning</span><span class="sap-pill">SAP aATP PAL</span><span style="font-size:15px;color:var(--ink-3);">Assigned to: Supply Planning · ETA: 24 hrs</span></div></div></div>
+      <div class="action-item"><div class="action-prio prio-critical">CRITICAL</div><div class="action-body"><div class="action-title">Agent 08 — Reroute HDPE CTR-0841 &amp; CTR-0842 to East Coast via SAP BN Logistics</div><div class="action-desc">SAP Business Network for Logistics (GA Q3 2024) tracking CTR-0841/0842 inbound via West Coast — ILWU strike risk historically recurring. East Coast reroute via carrier network. Must execute by Aug 5 to meet Aug 10 delivery deadline. $28k premium vs ~$180k potential downtime.</div><div class="action-meta"><span class="badge badge-a8">Agent 08</span><span class="badge badge-amber">Agent 04</span><span class="sap-pill">SAP BN for Logistics</span><span style="font-size:15px;color:var(--ink-3);">Assigned to: Logistics · ETA: Today</span></div></div></div>
+      <div class="action-item"><div class="action-prio prio-critical">CRITICAL</div><div class="action-body"><div class="action-title">Agent 05 + 07 — Release Vitafusion VF-003: SAP QM Inspection Clearance + SAP PLM Label Revision</div><div class="action-desc">SAP DM AI visual inspection flagged 0.4mm CFU print deviation on batch VF-003. SAP QM inspection lot on hold (48k units). SAP PLM compliant label artwork revision ready. Initiate QM usage decision + PLM change order. FDA Sep 1 deadline: 29 days.</div><div class="action-meta"><span class="badge badge-purple">Agent 05</span><span class="badge badge-a7">Agent 07</span><span class="sap-pill">SAP QM Usage Decision</span><span class="sap-pill">SAP PLM Change Order</span><span style="font-size:15px;color:var(--ink-3);">Assigned to: Regulatory + NPD · ETA: Aug 5</span></div></div></div>
+      <div class="action-item"><div class="action-prio prio-today">TODAY</div><div class="action-body"><div class="action-title">Agent 08 — Initiate SAP BN Discovery: Alternative SBC Suppliers (UNSPSC 12141500)</div><div class="action-desc">SAP Business Network Discovery searches 20,000+ UNSPSC categories across 190+ countries. Launch sourcing event for UNSPSC 12141500 (Sodium compounds) to qualify Solvay and identify additional Tier-3 SBC backup suppliers. BN network onboarding 3–5 days vs 3–4 weeks manual.</div><div class="action-meta"><span class="badge badge-a8">Agent 08</span><span class="sap-pill">SAP BN Discovery</span><span class="sap-pill">SAP Ariba Sourcing</span><span style="font-size:15px;color:var(--ink-3);">Assigned to: Strategic Procurement</span></div></div></div>
+      <div class="action-item"><div class="action-prio prio-today">TODAY</div><div class="action-body"><div class="action-title">Agent 02 — Cancel 4 Negative-ROI Promotions via SAP TPM (Save $3.2M Trade Budget)</div><div class="action-desc">OxiClean@Kroger (−8% ROI), Batiste@CVS (−14%), First Response@Walgreens (−22%), Spinbrush@Amazon (−19%). All below zero incremental ROI per SAP TPM Event Simulation. Cancel window closes Aug 7. Redeploy $6.4M to ARM &amp; HAMMER Walmart (projected 114% ROI) and Vitafusion Target.</div><div class="action-meta"><span class="badge badge-warning">Agent 02</span><span class="sap-pill">SAP Trade Promotion Mgmt</span><span style="font-size:15px;color:var(--ink-3);">Assigned to: Trade Marketing · ETA: Aug 7 deadline</span></div></div></div>
+    </div>
+  </div><!-- /actions -->
+
+  <!-- ════ ROI TAB ════ -->
+  <div id="tab-roi" style="display:none;">
+    <div class="kpi-row" style="grid-template-columns:repeat(4,1fr);">
+      <div class="kpi-card good"><div class="kpi-label">Total Est. Annual Value</div><div class="kpi-value good">$74M</div><div class="kpi-meta"><span class="status-dot dot-good"></span>8 agents · illustrative</div><div class="kpi-source"><span class="ext-pill">SAC Business Case Model — Demo</span></div></div>
+      <div class="kpi-card blue"><div class="kpi-label">Platform Investment</div><div class="kpi-value blue">$4.2M</div><div class="kpi-meta"><span class="status-dot dot-good"></span>Year 1 · licenses + implementation</div><div class="kpi-source"><span class="ext-pill">Illustrative — varies by scope</span></div></div>
+      <div class="kpi-card good"><div class="kpi-label">Projected ROI</div><div class="kpi-value good">17.6×</div><div class="kpi-meta"><span class="status-dot dot-good"></span>Return on platform investment</div><div class="kpi-source"><span class="ext-pill">Illustrative calculation</span></div></div>
+      <div class="kpi-card blue"><div class="kpi-label">Payback Period</div><div class="kpi-value blue">2.9 mo</div><div class="kpi-meta"><span class="status-dot dot-good"></span>From full deployment</div><div class="kpi-source"><span class="ext-pill">Illustrative</span></div></div>
+    </div>
+    <div class="roi-grid" style="margin-top:14px;">
+      <div class="roi-card rc1"><div class="roi-agent" style="color:var(--a1);">Agent 01 · SAP IBP Demand</div><div class="roi-title">Demand Sensing &amp; Forecasting</div><div class="roi-val" style="color:var(--a1);">$13.8M</div><div class="roi-sub">Stockout avoidance (MAPE improvement 25%→21%) + overstock reduction</div><div class="roi-bar-track"><div class="roi-bar-fill" style="width:100%;background:var(--a1);"></div></div></div>
+      <div class="roi-card rc2"><div class="roi-agent" style="color:var(--a2);">Agent 02 · SAP TPM + CAR</div><div class="roi-title">Trade Promotion Optimization</div><div class="roi-val" style="color:var(--a2);">$11.4M</div><div class="roi-sub">Eliminating negative-ROI events · Portfolio from 20% → 38% avg ROI</div><div class="roi-bar-track"><div class="roi-bar-fill" style="width:83%;background:var(--a2);"></div></div></div>
+      <div class="roi-card rc3"><div class="roi-agent" style="color:var(--a3);">Agent 03 · SAP CAR + Emarsys</div><div class="roi-title">Customer &amp; Channel Intelligence</div><div class="roi-val" style="color:var(--a3);">$5.8M</div><div class="roi-sub">POS velocity response + retail collaboration efficiency</div><div class="roi-bar-track"><div class="roi-bar-fill" style="width:42%;background:var(--a3);"></div></div></div>
+      <div class="roi-card rc4"><div class="roi-agent" style="color:var(--a4);">Agent 04 · SAP Ariba Risk + IBP</div><div class="roi-title">Supply Chain Resilience</div><div class="roi-val" style="color:var(--a4);">$7.4M</div><div class="roi-sub">Ariba risk early warning + IBP replan speed + commodity savings</div><div class="roi-bar-track"><div class="roi-bar-fill" style="width:54%;background:var(--a4);"></div></div></div>
+      <div class="roi-card rc5"><div class="roi-agent" style="color:var(--a5);">Agent 05 · SAP PLM + QM</div><div class="roi-title">Regulatory &amp; Label Compliance</div><div class="roi-val" style="color:var(--a5);">$2.4M</div><div class="roi-sub">Recall risk reduction + PLM cycle time −38%</div><div class="roi-bar-track"><div class="roi-bar-fill" style="width:17%;background:var(--a5);"></div></div></div>
+      <div class="roi-card rc6"><div class="roi-agent" style="color:var(--a6);">Agent 06 · SAP IBP Alloc + aATP</div><div class="roi-title">Allocation Intelligence</div><div class="roi-val" style="color:var(--a6);">$10.6M</div><div class="roi-sub">Fill rate 91% → 94.3% (CPG avg 94.1%) + PAL optimisation</div><div class="roi-bar-track"><div class="roi-bar-fill" style="width:77%;background:var(--a6);"></div></div></div>
+      <div class="roi-card rc7"><div class="roi-agent" style="color:var(--a7);">Agent 07 · SAP DM + PM</div><div class="roi-title">Manufacturing Intelligence</div><div class="roi-val" style="color:var(--a7);">$12.2M</div><div class="roi-sub">OEE gains (68% → 72% avg) + DM downtime detection + recall avoidance</div><div class="roi-bar-track"><div class="roi-bar-fill" style="width:88%;background:var(--a7);"></div></div></div>
+      <div class="roi-card rc8"><div class="roi-agent" style="color:var(--a8);">Agent 08 · SAP Business Network</div><div class="roi-title">Business Network Intelligence</div><div class="roi-val" style="color:var(--a8);">$10.4M</div><div class="roi-sub">BN Planning Collab + freight savings + BN Discovery alt-supplier speed</div><div class="roi-bar-track"><div class="roi-bar-fill" style="width:75%;background:var(--a8);"></div></div></div>
+    </div>
+    <div style="margin-top:14px;padding:18px 22px;background:var(--surface-2);border:1px solid var(--border);border-radius:12px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:14px;">
+      <div style="font-size:19px;font-weight:700;color:var(--ink-1);">TOTAL ILLUSTRATIVE ANNUAL VALUE</div>
+      <div style="font-size:34px;font-weight:800;color:var(--good);">$74.0M <span style="font-size:18px;font-weight:500;color:var(--ink-2);">across 8 SAP-grounded agents</span></div>
+    </div>
+    <div style="margin-top:10px;padding:12px 16px;background:rgba(250,178,25,.06);border:1px solid rgba(250,178,25,.2);border-radius:10px;font-size:16px;color:var(--ink-2);">⚠ <strong style="color:var(--warning);">All ROI values are illustrative.</strong> They are directionally informed by published CPG industry benchmarks (Gartner, AlixPartners, SAP case studies) but have not been validated against C&D's actual system data. A proper business case requires C&D baseline metrics.</div>
+  </div><!-- /roi -->
+
+  <!-- ════ ALLOCATION TAB ════ -->
+  <div id="tab-allocation" style="display:none;">
+    <div class="kpi-row" style="grid-template-columns:repeat(4,1fr);">
+      <div class="kpi-card good"><div class="kpi-label">aATP Fill Rate</div><div class="kpi-value" style="color:var(--a6);">94.3%</div><div class="kpi-meta"><span class="status-dot dot-good"></span>CPG avg Q3 2024: 94.1% · On benchmark</div><div class="kpi-source"><span class="sap-pill">SAP S/4HANA aATP · SD module</span></div></div>
+      <div class="kpi-card critical"><div class="kpi-label">Uncovered Demand</div><div class="kpi-value critical">142k</div><div class="kpi-meta"><span class="status-dot dot-critical"></span>Units · ARM &amp; HAMMER SKU-10024</div><div class="kpi-source"><span class="sap-pill">SAP IBP Allocation Planning</span></div></div>
+      <div class="kpi-card warning"><div class="kpi-label">PAL Quota (Walmart)</div><div class="kpi-value warning">91%</div><div class="kpi-meta"><span class="status-dot dot-warning"></span>Consumed · 18 days remaining</div><div class="kpi-source"><span class="sap-pill">SAP aATP PAL Quota Management</span></div></div>
+      <div class="kpi-card blue"><div class="kpi-label">IBP→S4 Sync</div><div class="kpi-value blue">15min</div><div class="kpi-meta"><span class="status-dot dot-good"></span>OData API via SAP CIG</div><div class="kpi-source"><span class="sap-pill">SAP Cloud Integration Gateway</span></div></div>
+    </div>
+    <div class="card" style="margin-top:14px;"><div class="card-head"><div class="card-title">SAP Allocation Architecture — Plan to Enforce Flow</div><div class="card-sub">IBP Allocation Planning → S/4HANA aATP (PAL/BOP/SUP) → Business Network confirmation</div></div><div class="card-body"><div style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px;text-align:center;"><div style="background:rgba(57,135,229,.08);border:1px solid rgba(57,135,229,.2);border-radius:10px;padding:14px;"><div style="font-size:18px;font-weight:700;color:var(--a1);margin-bottom:6px;">SAP IBP</div><div style="font-size:15px;color:var(--ink-2);">Allocation Planning · Constrained supply plan · 8-wk horizon per SKU/plant/channel</div></div><div style="background:rgba(10,126,194,.08);border:1px solid rgba(10,126,194,.2);border-radius:10px;padding:14px;"><div style="font-size:18px;font-weight:700;color:var(--a6);margin-bottom:6px;">S/4HANA aATP</div><div style="font-size:15px;color:var(--ink-2);">PAL · PAC · BOP · SUP · Order confirmation enforcement · OData API sync via CIG</div></div><div style="background:rgba(0,151,167,.08);border:1px solid rgba(0,151,167,.2);border-radius:10px;padding:14px;"><div style="font-size:18px;font-weight:700;color:var(--a7);margin-bottom:6px;">SAP DM</div><div style="font-size:15px;color:var(--ink-2);">Production confirmations · Real-time available-to-allocate · 15-min refresh to IBP</div></div><div style="background:rgba(124,77,255,.08);border:1px solid rgba(124,77,255,.2);border-radius:10px;padding:14px;"><div style="font-size:18px;font-weight:700;color:var(--a8);margin-bottom:6px;">SAP BN</div><div style="font-size:15px;color:var(--ink-2);">Supplier capacity confirmations → back into IBP replan · Closes the supply loop</div></div></div></div></div>
+    <div class="card" style="margin-top:14px;"><div class="card-head"><div class="card-title">Fair-Share Allocation — A&amp;H Baking Soda · PAL by Channel</div><div class="card-sub">S/4HANA aATP PAL · Illustrative · Aug 3–Sep 27, 2026</div></div><div class="card-body"><div class="alloc-tier-row"><div class="alloc-tier-label">Walmart</div><div class="alloc-quota-track"><div class="alloc-quota-fill" style="width:91%;background:var(--critical);"></div></div><div class="alloc-pct" style="color:var(--critical);">91%</div><div class="alloc-units">364k / 400k</div></div><div class="alloc-tier-row"><div class="alloc-tier-label">Target</div><div class="alloc-quota-track"><div class="alloc-quota-fill" style="width:74%;background:var(--warning);"></div></div><div class="alloc-pct" style="color:var(--warning);">74%</div><div class="alloc-units">222k / 300k</div></div><div class="alloc-tier-row"><div class="alloc-tier-label">Kroger</div><div class="alloc-quota-track"><div class="alloc-quota-fill" style="width:61%;background:var(--a3);"></div></div><div class="alloc-pct" style="color:var(--a3);">61%</div><div class="alloc-units">122k / 200k</div></div><div class="alloc-tier-row"><div class="alloc-tier-label">Amazon</div><div class="alloc-quota-track"><div class="alloc-quota-fill" style="width:42%;background:var(--a1);"></div></div><div class="alloc-pct" style="color:var(--a1);">42%</div><div class="alloc-units">84k / 200k</div></div></div></div>
+  </div><!-- /allocation -->
+
+
+  <!-- ════ MANUFACTURING ════ -->
+  <div id="tab-manufacturing" style="display:none;">
+    <div class="kpi-row" style="grid-template-columns:repeat(4,1fr);">
+      <div class="kpi-card warning"><div class="kpi-label">Plant OEE (avg)</div><div class="kpi-value warning">72%</div><div class="kpi-meta"><span class="status-dot dot-warning"></span>CPG benchmark 68–73% typical · At benchmark</div><div class="kpi-source"><span class="sap-pill">SAP Digital Manufacturing · OEE Analytics</span></div></div>
+      <div class="kpi-card critical"><div class="kpi-label">Lines in Downtime</div><div class="kpi-value critical">1</div><div class="kpi-meta"><span class="status-dot dot-critical"></span>York PA Line 4 · SAP PM notification created</div><div class="kpi-source"><span class="sap-pill">SAP DM + SAP PM</span></div></div>
+      <div class="kpi-card warning"><div class="kpi-label">SBC Burn Rate</div><div class="kpi-value warning">48 MT/d</div><div class="kpi-meta"><span class="status-dot dot-warning"></span>Run-out Aug 21 per IBP</div><div class="kpi-source"><span class="sap-pill">SAP DM Production Order Actuals</span></div></div>
+      <div class="kpi-card good"><div class="kpi-label">AI Visual Inspection Pass</div><div class="kpi-value good">99.1%</div><div class="kpi-meta"><span class="status-dot dot-good"></span>Vitafusion label QC</div><div class="kpi-source"><span class="sap-pill">SAP DM Vision AI (camera integration)</span></div></div>
+    </div>
+    <div style="margin-top:12px;padding:12px 16px;background:rgba(0,151,167,.06);border:1px solid rgba(0,151,167,.2);border-radius:10px;font-size:16px;color:var(--ink-2);">
+      <strong style="color:var(--a7);">OEE Benchmark context (published 2024–2026 data):</strong> CPG / Consumer Goods typical OEE: <strong>50–70%</strong> (SKU &amp; promo changeovers dominant loss). CPG world-class packaging lines: <strong>82–85%</strong>. Average for high-mix CPG: <strong>68–73%</strong>. Sources: TeepTrak World-Class OEE Benchmark 2026, Symestic OEE Benchmarks, OEELab 2026 Benchmark Report. <span class="sap-pill" style="margin-left:6px;">SAP DM OEE Dashboard</span>
+    </div>
+    <div class="two-col" style="margin-top:14px;">
+      <div class="card"><div class="card-head"><div class="card-title">York PA Plant — OEE by Line</div><div class="card-sub">SAP Digital Manufacturing · Aug 3, 2026 · Illustrative</div></div><div class="card-body" style="padding:0;"><table class="data-table"><thead><tr><th>Line</th><th>Product</th><th>OEE</th><th>Status</th><th>SAP DM Signal</th></tr></thead><tbody><tr><td>Line 1</td><td>A&amp;H Baking Soda</td><td style="color:var(--good);">88%</td><td><span class="badge badge-good">RUNNING</span></td><td style="font-size:14px;color:var(--ink-3);">Normal operations</td></tr><tr><td>Line 2</td><td>OxiClean</td><td style="color:var(--warning);">76%</td><td><span class="badge badge-warning">MONITOR</span></td><td style="font-size:14px;color:var(--ink-3);">Minor changeover delay</td></tr><tr><td>Line 3</td><td>A&amp;H Baking Soda</td><td style="color:var(--warning);">74%</td><td><span class="badge badge-warning">CHANGEOVER</span></td><td style="font-size:14px;color:var(--ink-3);">SKU changeover in progress</td></tr><tr><td style="color:var(--critical);font-weight:700;">Line 4</td><td>A&amp;H Baking Soda</td><td style="color:var(--critical);">71%</td><td><span class="badge badge-critical">DOWNTIME</span></td><td style="font-size:14px;color:var(--a7);">PM notification auto-created · Bearing wear</td></tr></tbody></table></div></div>
+      <div class="card"><div class="card-head"><div class="card-title">Lakewood NJ Plant — OEE by Line</div><div class="card-sub">SAP Digital Manufacturing · Aug 3, 2026 · Illustrative</div></div><div class="card-body" style="padding:0;"><table class="data-table"><thead><tr><th>Line</th><th>Product</th><th>OEE</th><th>Status</th><th>SAP DM Signal</th></tr></thead><tbody><tr><td>Line 5</td><td>Batiste Dry Shampoo</td><td style="color:var(--good);">91%</td><td><span class="badge badge-good">RUNNING</span></td><td style="font-size:14px;color:var(--ink-3);">World-class · stable</td></tr><tr><td>Line 6</td><td>Vitafusion Probiotic</td><td style="color:var(--warning);">83%</td><td><span class="badge badge-warning">BATCH HOLD</span></td><td style="font-size:14px;color:var(--a5);">QM inspection lot VF-003 · PLM revision</td></tr></tbody></table></div></div>
+    </div>
+  </div><!-- /manufacturing -->
+
+  <!-- ════ BUSINESS NETWORK ════ -->
+  <div id="tab-network" style="display:none;">
+    <div class="kpi-row" style="grid-template-columns:repeat(4,1fr);">
+      <div class="kpi-card critical"><div class="kpi-label">BN Constraint Signal</div><div class="kpi-value critical">HIGH</div><div class="kpi-meta"><span class="status-dot dot-critical"></span>SBC category · Multi-member pressure</div><div class="kpi-source"><span class="sap-pill">SAP BN Component Planning Collab</span></div></div>
+      <div class="kpi-card good"><div class="kpi-label">IBP Forecast Shared</div><div class="kpi-value" style="color:var(--a8);">12</div><div class="kpi-meta"><span class="status-dot dot-good"></span>Suppliers · 8-week rolling horizon</div><div class="kpi-source"><span class="sap-pill">SAP BN Planning Collaboration</span></div></div>
+      <div class="kpi-card good"><div class="kpi-label">PO Confirm Rate</div><div class="kpi-value good">94.2%</div><div class="kpi-meta"><span class="status-dot dot-good"></span>342 open POs on network</div><div class="kpi-source"><span class="sap-pill">SAP BN for Procurement</span></div></div>
+      <div class="kpi-card warning"><div class="kpi-label">Containers Tracked</div><div class="kpi-value warning">24</div><div class="kpi-meta"><span class="status-dot dot-warning"></span>3 critical HDPE inbound</div><div class="kpi-source"><span class="sap-pill">SAP BN for Logistics (Q3 2024 GA)</span></div></div>
+    </div>
+    <div class="card" style="margin-top:14px;"><div class="card-head"><div class="card-title">SAP Business Network — Confirmed Capabilities Used in This Dashboard</div><div class="card-sub">All items below are confirmed SAP BN capabilities — not invented. Sources cited.</div></div><div class="card-body" style="padding:0;"><table class="data-table"><thead><tr><th>BN Capability</th><th>SAP Module</th><th>C&amp;D Use Case in Demo</th><th>Confirmation Source</th><th>Annual Value (Illustrative)</th></tr></thead><tbody><tr><td><strong>Planning Collaboration</strong></td><td>BN for Supply Chain</td><td>8-wk IBP forecast → 12 suppliers; capacity commitment back to IBP</td><td style="font-size:14px;color:var(--a6);">SAP Help Portal + SAP BN product page</td><td style="color:var(--good);font-weight:700;">$4.6M</td></tr><tr><td><strong>Component Planning</strong></td><td>BN Supply Chain Collab</td><td>SBC procurement constraint signal across network members</td><td style="font-size:14px;color:var(--a6);">SAP BN Q3 2024 release notes</td><td style="color:var(--good);font-weight:700;">$2.4M</td></tr><tr><td><strong>Supplier Discovery</strong></td><td>BN Discovery (ex-Ariba Discovery)</td><td>UNSPSC 12141500 search across 190+ countries for alt SBC</td><td style="font-size:14px;color:var(--a6);">SAP BN Discovery product page</td><td style="color:var(--good);font-weight:700;">$1.1M</td></tr><tr><td><strong>Freight Track / Trace</strong></td><td>BN for Logistics</td><td>HDPE container tracking; ILWU reroute recommendation</td><td style="font-size:14px;color:var(--a6);">SAP BN Q3 2024 GA release</td><td style="color:var(--good);font-weight:700;">$0.9M</td></tr><tr><td><strong>PO Collaboration</strong></td><td>BN for Procurement</td><td>342 open POs; 94.2% confirm rate; exceptions automated</td><td style="font-size:14px;color:var(--a6);">SAP BN product page</td><td style="color:var(--good);font-weight:700;">$0.8M</td></tr><tr><td><strong>ASN / Quality Certs</strong></td><td>BN ASN Compliance</td><td>Supplement ingredient CoA from suppliers; FDA audit trail</td><td style="font-size:14px;color:var(--a6);">SAP Ariba/BN compliance docs</td><td style="color:var(--good);font-weight:700;">$0.6M</td></tr><tr><td colspan="4" style="font-weight:700;color:var(--ink-1);">Total Agent 08 / Business Network Annual Value (Illustrative)</td><td style="color:var(--a8);font-weight:800;font-size:19px;">$10.4M</td></tr></tbody></table></div></div>
+    <div style="margin-top:12px;padding:14px 18px;background:rgba(250,178,25,.06);border:1px solid rgba(250,178,25,.2);border-radius:10px;font-size:16px;color:var(--ink-2);">
+      <strong style="color:var(--warning);">What was changed from v5 → v6:</strong> The v5 "Network Scarcity Index 94/100" was a fictional metric — removed. The "Ciner Group mine flood" was a fictional event — replaced with "Tier-1 supplier force majeure" detected via SAP Ariba Risk Management (a real capability). The "12 competing CPG buyers" count has been reframed as a directional BN component planning signal (buyer identities are anonymised on the SAP Business Network). All remaining BN capabilities are now cited to confirmed SAP product documentation.
+    </div>
+  </div><!-- /network -->
+
+  <!-- ════ SAP COVERAGE ════ -->
+  <div id="tab-coverage" style="display:none;">
+    <div style="margin-bottom:14px;padding:16px 20px;background:rgba(12,163,12,.06);border:1px solid rgba(12,163,12,.2);border-radius:12px;font-size:17px;color:var(--ink-2);line-height:1.7;">
+      <strong style="color:var(--good);">🟢 SAP Coverage Map — v6</strong> · Every agent in this dashboard is mapped to the SAP SCM product that would source its data in a real deployment. Cards are colour-coded: <span style="color:var(--good);font-weight:700;">Green = standard SAP, deploy-ready</span> · <span style="color:var(--warning);font-weight:700;">Amber = SAP + configuration / integration required</span> · <span style="color:var(--critical);font-weight:700;">Red = requires external data enrichment (not native SAP)</span>
+    </div>
+    <div class="cov-grid">
+      <div class="cov-card cov-green"><span class="cov-tag green">🟢 STANDARD SAP</span><div class="cov-card-title">Agent 01 — Demand Sensing</div><div class="cov-card-sub">SAP IBP Demand Sensing + SAP CAR</div><ul class="cov-list"><li>Demand Sensing: SAP IBP — gradient boosting (xGBoost), daily, 4–8 wk horizon</li><li>POS data input: SAP Customer Activity Repository (CAR) — retailer POS daily feed</li><li>Outlier detection: SAP IBP automatic outlier correction (confirmed capability)</li><li>Anomaly alerts: SAP Alert Management via BTP</li></ul><div style="margin-top:10px;font-size:14px;color:var(--ink-3);">⚠ Non-SAP: Social media signals (TikTok etc.) require external API + BTP integration — removed from v6</div></div>
+      <div class="cov-card cov-green"><span class="cov-tag green">🟢 STANDARD SAP</span><div class="cov-card-title">Agent 02 — Trade Promotion</div><div class="cov-card-sub">SAP Trade Promotion Management + SAP CAR</div><ul class="cov-list"><li>Event creation &amp; simulation: SAP TPM (Trade Promotion Management)</li><li>Baseline &amp; lift calculation: SAP Customer Activity Repository POS analytics</li><li>P&amp;L modelling: SAP TPM + CO-PA</li><li>Retailer EDI data: SAP Business Network EDI collaboration</li></ul></div>
+      <div class="cov-card cov-amber"><span class="cov-tag amber">🟡 SAP + EXTERNAL ENRICHMENT</span><div class="cov-card-title">Agent 03 — Customer &amp; Channel</div><div class="cov-card-sub">SAP CAR + SAP Emarsys + External market data</div><ul class="cov-list"><li>POS velocity &amp; basket analysis: SAP CAR (native)</li><li>Customer engagement / NPS: SAP Emarsys (native)</li><li>Retailer collaboration: SAP BN EDI (native)</li><li style="color:var(--warning);">Competitor pricing &amp; market share: External — Nielsen, IRI, or Numerator via BTP ingestion</li></ul></div>
+      <div class="cov-card cov-amber"><span class="cov-tag amber">🟡 SAP + EXTERNAL ENRICHMENT</span><div class="cov-card-title">Agent 04 — Supply Chain Resilience</div><div class="cov-card-sub">SAP Ariba Risk Mgmt + SAP IBP + External commodity</div><ul class="cov-list"><li>Supplier risk scoring: SAP Ariba Risk &amp; Performance Management (native)</li><li>Supply gap / run-out: SAP IBP Supply Planning MRP exceptions (native)</li><li>Supplier discovery: SAP Ariba Sourcing + BN Discovery (native)</li><li style="color:var(--warning);">Commodity spot pricing: External — S&amp;P Global Commodity Insights / ICIS via BTP</li></ul></div>
+      <div class="cov-card cov-green"><span class="cov-tag green">🟢 STANDARD SAP</span><div class="cov-card-title">Agent 05 — Regulatory &amp; Compliance</div><div class="cov-card-sub">SAP PLM + SAP QM + SAP EHS</div><ul class="cov-list"><li>Label management &amp; compliance: SAP PLM Label Management</li><li>Batch quality holds: SAP QM Inspection Lots + Usage Decision</li><li>Regulatory tracking (FDA 21 CFR): SAP EHS / PLM regulatory content</li><li>Change management: SAP PLM Engineering Change Order</li></ul></div>
+      <div class="cov-card cov-green"><span class="cov-tag green">🟢 STANDARD SAP</span><div class="cov-card-title">Agent 06 — Allocation Intelligence</div><div class="cov-card-sub">SAP IBP Allocation + SAP S/4HANA aATP</div><ul class="cov-list"><li>Constrained supply plan: SAP IBP Allocation Planning module</li><li>PAL / PAC / BOP / SUP quotas: SAP S/4HANA aATP (advanced ATP)</li><li>Order confirmation enforcement: SAP SD + aATP integration</li><li>IBP→S4 sync: SAP Cloud Integration Gateway (CIG) OData API</li></ul></div>
+      <div class="cov-card cov-green"><span class="cov-tag green">🟢 STANDARD SAP</span><div class="cov-card-title">Agent 07 — Manufacturing Intelligence</div><div class="cov-card-sub">SAP Digital Manufacturing + SAP PM + SAP PP</div><ul class="cov-list"><li>OEE measurement: SAP Digital Manufacturing OEE Analytics</li><li>Downtime detection &amp; PM notification: SAP DM + SAP Plant Maintenance</li><li>AI visual inspection: SAP DM Vision AI (camera integration)</li><li>Batch genealogy &amp; traceability: SAP DM Batch Traceability</li><li>Production order actuals: SAP PP + DM integration</li></ul></div>
+      <div class="cov-card cov-amber"><span class="cov-tag amber">🟡 SAP + CONFIGURATION</span><div class="cov-card-title">Agent 08 — Business Network</div><div class="cov-card-sub">SAP Business Network (all modules)</div><ul class="cov-list"><li>Planning Collaboration (confirmed): SAP BN for Supply Chain</li><li>Component constraint signals (confirmed): SAP BN Supply Chain Collab</li><li>Freight tracking (GA Q3 2024): SAP BN for Logistics</li><li>Supplier discovery (confirmed): SAP BN Discovery — 190+ countries</li><li>PO collaboration (confirmed): SAP BN for Procurement</li><li style="color:var(--warning);">Trading partner onboarding &amp; data model alignment requires project work</li></ul></div>
+      <div class="cov-card cov-green" style="grid-column:1/-1;"><span class="cov-tag green">🟢 PLATFORM</span><div class="cov-card-title">Joule AI + SAP BTP — The Orchestration Layer</div><div class="cov-card-sub">SAP Business Technology Platform · SAP Analytics Cloud · SAP Task Center</div><ul class="cov-list" style="column-count:2;gap:20px;"><li>Joule AI agent orchestration: SAP BTP AI Core + Agent Framework</li><li>Cross-agent alert management: SAP Alert Management (S/4HANA + BTP)</li><li>Action workflow &amp; approval: SAP Task Center (unified inbox)</li><li>Analytics &amp; KPI dashboards: SAP Analytics Cloud (SAC)</li><li>Data integration: SAP BTP Integration Suite + CIG</li><li>External data ingestion (Nielsen, commodity feeds): SAP BTP Data Ingestion + Open Connectors</li></ul></div>
+    </div>
+    <div style="margin-top:16px;">
+      <div class="section-label">Coverage Summary</div>
+      <div class="kpi-row" style="grid-template-columns:repeat(3,1fr);">
+        <div class="kpi-card good"><div class="kpi-label">🟢 Standard SAP — Deploy Ready</div><div class="kpi-value good">5</div><div class="kpi-meta">Agents 01, 02, 05, 06, 07 · No external data dependencies</div></div>
+        <div class="kpi-card warning"><div class="kpi-label">🟡 SAP + External Enrichment</div><div class="kpi-value warning">3</div><div class="kpi-meta">Agents 03, 04, 08 · 1–2 external feeds each via BTP</div></div>
+        <div class="kpi-card blue"><div class="kpi-label">🔴 Fully External (removed)</div><div class="kpi-value blue">0</div><div class="kpi-meta">TikTok signal and fictional scenarios removed in v6</div></div>
+      </div>
+    </div>
+  </div><!-- /coverage -->
+
+  <!-- ════ DATA SOURCES ════ -->
+  <div id="tab-sources" style="display:none;">
+    <div style="margin-bottom:14px;padding:14px 18px;background:rgba(251,191,36,.08);border:1px solid rgba(251,191,36,.25);border-radius:10px;font-size:16px;color:var(--ink-2);">
+      ⚠ <strong style="color:#fbbf24;">DEMO DATA ONLY</strong> · This tab documents every data point in the dashboard: what it shows, whether the value is illustrative or benchmark-sourced, and what SAP system would provide it in a real deployment. Benchmark values are cited to published research.
+    </div>
+    <div class="card"><div class="card-head"><div class="card-title">Company Context — Church &amp; Dwight (CHD)</div><div class="card-sub">Verified public data · Figures used to frame the demo</div></div><div class="card-body" style="padding:0;"><table class="data-table"><thead><tr><th>Figure Used</th><th>Value in Demo</th><th>Actual Status</th><th>Source</th></tr></thead><tbody><tr><td>Total Annual Revenue</td><td>$6.2B</td><td style="color:var(--good);">✓ Verified</td><td style="font-size:14px;">CHD FY2024 10-K / Investing.com (revenues $6.1–6.2B confirmed)</td></tr><tr><td>Sodium bicarbonate as growth driver</td><td>SBC = core C&D business</td><td style="color:var(--good);">✓ Verified</td><td style="font-size:14px;">CHD Q2 2026 10-Q: "growth in sodium bicarbonate and animal nutrition businesses"</td></tr><tr><td>C&D produces SBC (not just buys)</td><td>ARM &amp; HAMMER own production</td><td style="color:var(--good);">✓ Verified</td><td style="font-size:14px;">Yahoo Finance CHD profile: "produces sodium bicarbonate and cleaning items"</td></tr><tr><td>Employee count</td><td>Not used in demo</td><td style="color:var(--good);">✓ Public</td><td style="font-size:14px;">5,578 employees FY2024 · Revelio Labs</td></tr><tr><td>Specific SBC inventory (864 MT)</td><td>864 MT on-hand York PA</td><td style="color:var(--critical);">✗ Invented</td><td style="font-size:14px;">Illustrative — no public data. Real source: SAP MM / IBP</td></tr><tr><td>SBC consumption rate (48 MT/day)</td><td>48 MT/day burn rate</td><td style="color:var(--critical);">✗ Invented</td><td style="font-size:14px;">Illustrative — realistic for C&D scale. Real source: SAP DM production order actuals</td></tr></tbody></table></div></div>
+    <div class="card" style="margin-top:14px;"><div class="card-head"><div class="card-title">Industry Benchmarks Used — All Cited to Published Research</div><div class="card-sub">v6: demo KPIs updated to reflect real industry benchmarks</div></div><div class="card-body" style="padding:0;"><table class="data-table"><thead><tr><th>KPI</th><th>Value in Demo</th><th>Industry Benchmark</th><th>Published Source</th></tr></thead><tbody><tr><td>Plant OEE — CPG typical</td><td>72% avg (was 77% in v5)</td><td>CPG typical 68–73% · World-class 82–85%</td><td style="font-size:14px;">TeepTrak OEE Benchmark 2026 · Symestic OEE Benchmarks · OEELab 2026</td></tr><tr><td>Customer Fill Rate</td><td>94.3% (was 87.4% in v5 — too low)</td><td>CPG avg 94.1% (Q3 2024) · Best-in-class 98%+</td><td style="font-size:14px;">AIforcpg.com CPG Supply Chain 2025 · KPI Depot</td></tr><tr><td>Demand Forecast MAPE</td><td>21.4% (was 5.8% in v5 — unrealistic)</td><td>CPG typical 25–35% · Leading 15–20%</td><td style="font-size:14px;">SAP IBP documentation · AlixPartners CPG report 2024</td></tr><tr><td>Trade Promo Portfolio ROI</td><td>38% (was 1.38× — unclear metric)</td><td>CPG typical 20–40% · Top performers 50–100%+</td><td style="font-size:14px;">AlixPartners "Revitalizing CPG Performance" 2024</td></tr><tr><td>Customer NPS (CPG median)</td><td>NPS 62</td><td>CPG median follow-up NPS: 61%</td><td style="font-size:14px;">CustomerGauge CPG NPS &amp; CX Benchmarks 2026</td></tr></tbody></table></div></div>
+    <div class="card" style="margin-top:14px;"><div class="card-head"><div class="card-title">What Changed v5 → v6: Non-SAP Elements Removed or Reframed</div><div class="card-sub">Transparency on every change made to improve SAP grounding</div></div><div class="card-body" style="padding:0;"><table class="data-table"><thead><tr><th>v5 Element</th><th>Issue</th><th>v6 Replacement</th><th>SAP Source</th></tr></thead><tbody><tr><td>"TikTok viral signal detected by Agent 01"</td><td style="color:var(--critical);">Not a SAP capability — requires external social API</td><td>SAP IBP Demand Sensing POS velocity anomaly via SAP CAR</td><td style="color:var(--good);">SAP IBP Demand Sensing (gradient boosting)</td></tr><tr><td>"Ciner Group mine flood event"</td><td style="color:var(--critical);">Fictional event using real company name — defamation risk</td><td>"Tier-1 SBC supplier force majeure (natural disaster)" — generic</td><td style="color:var(--good);">SAP Ariba Risk &amp; Performance Management</td></tr><tr><td>"12 competing CPG buyers" · "Scarcity index 94/100"</td><td style="color:var(--critical);">Fictional metric — SAP BN does not publish a scarcity index</td><td>BN component planning constraint signal (confirmed SAP capability)</td><td style="color:var(--good);">SAP BN Supply Chain Collaboration</td></tr><tr><td>Forecast accuracy 94.2% / MAPE 5.8%</td><td style="color:var(--critical);">Unrealistic for CPG (industry MAPE 25–35% typical)</td><td>MAPE 21.4% — above-average for CPG (leading range 15–20%)</td><td style="color:var(--good);">SAP IBP Demand Sensing output KPI</td></tr><tr><td>Fill rate 87.4%</td><td style="color:var(--warning);">Below CPG average (94.1%) — now updated to show realistic values</td><td>Fill rate 94.3% — at CPG average benchmark</td><td style="color:var(--good);">SAP S/4HANA aATP order confirmation data</td></tr><tr><td>Portfolio ROI "1.38×"</td><td style="color:var(--warning);">Ambiguous multiplier format — not standard CPG metric</td><td>Portfolio ROI 38% — within typical CPG range (20–40%)</td><td style="color:var(--good);">SAP TPM Event Simulation + CO-PA</td></tr><tr><td>Brand sentiment from "social listening"</td><td style="color:var(--warning);">Not native SAP — Agent 03 renamed and reframed</td><td>Customer &amp; Channel Intelligence — SAP CAR + Emarsys + external market data (labelled)</td><td style="color:var(--good);">SAP CAR · SAP Emarsys</td></tr></tbody></table></div></div>
+  </div><!-- /sources -->
+
+  <!-- ════ HELP ════ -->
+  <div id="tab-help" style="display:none;">
+    <div class="card"><div class="card-head"><div class="card-title">8-Agent SAP Architecture — v6 Summary</div><div class="card-sub">All agents grounded in SAP SCM product suite</div></div><div class="card-body" style="padding:0;"><table class="data-table"><thead><tr><th>Agent</th><th>Function</th><th>Primary SAP Products</th><th>Coverage</th></tr></thead><tbody><tr><td><span class="badge badge-blue">01</span> Demand Sensing</td><td>Short-term POS-driven forecast anomaly</td><td>SAP IBP Demand Sensing · SAP CAR</td><td><span class="badge badge-good">🟢 Standard SAP</span></td></tr><tr><td><span class="badge badge-warning">02</span> Trade Promotion</td><td>Promo ROI simulation &amp; optimisation</td><td>SAP TPM · SAP CAR · CO-PA</td><td><span class="badge badge-good">🟢 Standard SAP</span></td></tr><tr><td><span class="badge badge-good">03</span> Customer &amp; Channel</td><td>POS velocity, NPS, retailer engagement</td><td>SAP CAR · SAP Emarsys · BN EDI</td><td><span class="badge badge-warning">🟡 + External market data</span></td></tr><tr><td><span class="badge badge-amber">04</span> Supply Chain</td><td>Supplier risk, MRP exceptions, sourcing</td><td>SAP Ariba Risk · SAP IBP Supply · SAP Ariba Sourcing</td><td><span class="badge badge-warning">🟡 + Commodity pricing feed</span></td></tr><tr><td><span class="badge badge-purple">05</span> Regulatory</td><td>Label compliance, QM batch holds, FDA</td><td>SAP PLM · SAP QM · SAP EHS</td><td><span class="badge badge-good">🟢 Standard SAP</span></td></tr><tr><td><span class="badge badge-a6">06</span> Allocation</td><td>Constrained supply plan, PAL quotas, aATP</td><td>SAP IBP Allocation · SAP S/4HANA aATP · SAP CIG</td><td><span class="badge badge-good">🟢 Standard SAP</span></td></tr><tr><td><span class="badge badge-a7">07</span> Manufacturing</td><td>OEE, downtime, visual QC, batch genealogy</td><td>SAP Digital Manufacturing · SAP PM · SAP PP</td><td><span class="badge badge-good">🟢 Standard SAP</span></td></tr><tr><td><span class="badge badge-a8">08</span> Business Network</td><td>Planning collab, freight, PO, BN Discovery</td><td>SAP Business Network (all modules)</td><td><span class="badge badge-warning">🟡 + Partner onboarding work</span></td></tr></tbody></table></div></div>
+    <div style="margin-top:14px;display:flex;flex-direction:column;gap:10px;">
+      <div class="help-faq-item" onclick="toggleHelp('faq1')"><div class="help-faq-q">How does SAP IBP Demand Sensing actually detect the ARM &amp; HAMMER demand spike? <span id="faq1-chevron">▼</span></div><div class="help-faq-a" id="faq1" style="display:none;">SAP IBP Demand Sensing uses a Hybrid Gradient Boosting (xGBoost) algorithm. It ingests daily POS data from SAP Customer Activity Repository, along with sales orders (S/4HANA SD), promotions (TPM), and inventory (MM). It creates daily-granularity forecasts for a 4–8 week horizon and automatically detects outliers in sales history. In this demo scenario, POS velocity on ARM &amp; HAMMER Baking Soda showed a +24.8% spike — the outlier correction algorithm validated this as a genuine sustained uplift (not a data quality artifact). Source: SAP Help Portal, Demand Sensing Process documentation.</div></div>
+      <div class="help-faq-item" onclick="toggleHelp('faq2')"><div class="help-faq-q">What did you remove from v5 and why? <span id="faq2-chevron">▼</span></div><div class="help-faq-a" id="faq2" style="display:none;">Three major removals: (1) TikTok social signal — replaced with SAP IBP/CAR-native POS anomaly because social listening is not a SAP capability and requires external API integration. (2) "Ciner Group mine flood" — a fictional event using a real company name, creating defamation risk. Replaced with generic "Tier-1 supplier force majeure" via SAP Ariba Risk Management. (3) "Scarcity index 94/100" — a fictional metric; SAP Business Network does not publish a public scarcity index. Replaced with the real BN capability: component planning collaboration constraint signals. Also corrected all benchmark KPIs to reflect published CPG industry data (OEE, fill rate, MAPE, trade ROI).</div></div>
+      <div class="help-faq-item" onclick="toggleHelp('faq3')"><div class="help-faq-q">How is the ILWU reroute scenario supported? <span id="faq3-chevron">▼</span></div><div class="help-faq-a" id="faq3" style="display:none;">The ILWU (International Longshore and Warehouse Union) is a real union with historically recurring West Coast port strike actions (last major action 2023). Container tracking via SAP Business Network for Logistics was released as generally available in Q3 2024 (confirmed in SAP BN release notes). The reroute cost estimate ($28k premium vs $180k potential downtime) is illustrative — the $28k premium for East Coast port rerouting is directionally plausible but not validated. The core scenario structure is SAP-supportable and the risk is real.</div></div>
+    </div>
+  </div><!-- /help -->
+
+</main>
+
+<!-- AI PANEL -->
+<div class="ai-panel collapsed" id="ai-panel">
+  <div class="ai-panel-head" onclick="toggleAIPanel()">
+    <div class="ai-panel-title"><div class="ai-pulse"></div>Joule AI — v6 SAP-Grounded Assistant</div>
+    <div class="ai-toggle" id="ai-toggle">▲</div>
+  </div>
+  <div class="ai-body" id="ai-body">
+    <div class="ai-msg bot"><strong>Hello.</strong> I'm the v6 SAP-grounded assistant. All scenarios in this dashboard are now tied to specific SAP products and confirmed capabilities.<br><br>Try: <em>"What SAP products power demand sensing?"</em> · <em>"What changed from v5 to v6?"</em> · <em>"Why was the scarcity index removed?"</em></div>
+  </div>
+  <div class="ai-input-row">
+    <input class="ai-input" id="ai-input" type="text" placeholder="Ask about SAP coverage, agents, or what changed in v6…" onkeydown="if(event.key==='Enter')sendAI()">
+    <button class="ai-send" onclick="sendAI()">↑</button>
+  </div>
+</div>
+
+<script>
+/* ── v6 Data Arrays & Render Functions ─────────────────────────── */
+const SKU_DATA=[
+  {week:'Aug 3–9',   base:68400, adj:85400, p90:96200,  delta:'+24.8%', acc:'78.6%'},
+  {week:'Aug 10–16', base:68400, adj:88100, p90:99300,  delta:'+28.8%', acc:'77.2%'},
+  {week:'Aug 17–23', base:68100, adj:85600, p90:96000,  delta:'+25.7%', acc:'—'},
+  {week:'Aug 24–30', base:67800, adj:79500, p90:88800,  delta:'+17.3%', acc:'—'},
+  {week:'Aug 31–Sep 6',base:67500,adj:73800,p90:81900,  delta:'+9.3%',  acc:'—'},
+  {week:'Sep 7–13',  base:67500, adj:70100, p90:76800,  delta:'+3.9%',  acc:'—'},
+  {week:'Sep 14–20', base:67200, adj:68800, p90:73400,  delta:'+2.4%',  acc:'—'},
+  {week:'Sep 21–27', base:67200, adj:67900, p90:71200,  delta:'+1.0%',  acc:'—'},
+];
+function renderSKUForecast(){
+  const b=document.getElementById('sku-forecast-body');
+  if(!b)return;
+  b.innerHTML=SKU_DATA.map(r=>{
+    const v=parseFloat(r.delta);
+    const dc=v>20?'var(--critical)':v>8?'var(--warning)':'var(--good)';
+    return `<tr><td>${r.week}</td><td style="text-align:right;color:var(--ink-2);">${r.base.toLocaleString()}</td><td style="text-align:right;font-weight:600;color:var(--a1);">${r.adj.toLocaleString()}</td><td style="text-align:right;font-weight:600;color:var(--a2);">${r.p90.toLocaleString()}</td><td style="text-align:right;font-weight:700;color:${dc};">${r.delta}</td><td style="text-align:right;color:var(--ink-2);">${r.acc}</td></tr>`;
+  }).join('');
+}
+const BRANDS=[
+  {brand:'ARM &amp; HAMMER',score:+24.8,color:'#3987e5',label:'+24.8% vs baseline'},
+  {brand:'OxiClean',       score:+12.3,color:'#d95926',label:'+12.3% · back-to-school'},
+  {brand:'Vitafusion',     score:+4.1, color:'#199e70',label:'+4.1% · steady growth'},
+  {brand:'Batiste',        score:-1.8, color:'#c89a1a',label:'−1.8% · competitor price cut'},
+  {brand:'Waterpik',       score:+6.8, color:'#199e70',label:'+6.8% · oral health trend'},
+  {brand:'First Response', score:+2.3, color:'#199e70',label:'+2.3% · seasonal lift'},
+  {brand:'Nair',           score:-3.2, color:'#e55',   label:'−3.2% · Unilever launch'},
+  {brand:'Spinbrush',      score:+0.8, color:'#4f5872',label:'+0.8% · flat'},
+];
+function renderSentiment(){
+  const el=document.getElementById('sentiment-bars');
+  if(!el)return;
+  el.innerHTML=BRANDS.map(b=>{
+    const abs=Math.abs(b.score);
+    const pct=Math.min(abs*2.5+30,100);
+    const sc=b.score>5?'var(--good)':b.score>0?'var(--a1)':b.score>-3?'var(--warning)':'var(--critical)';
+    return `<div class="sentiment-row"><div class="sentiment-brand">${b.brand}</div><div class="sentiment-bar-track"><div class="sentiment-bar-fill" style="width:${pct}%;background:${b.color};"></div></div><div class="sentiment-score" style="color:${sc};font-size:15px;">${b.label}</div></div>`;
+  }).join('');
+}
+const CHECKS=[
+  {icon:'🔴',text:'Vitafusion Probiotic+ CFU Claim — Label Revision Required',sub:'FDA 21 CFR Part 101 · Deadline Sep 1, 2026 · SAP PLM label workflow',status:'badge-critical',label:'OVERDUE SOON'},
+  {icon:'🟡',text:'ARM &amp; HAMMER Clean &amp; Natural — EPA Safer Choice Re-cert',sub:'45-day review cycle · Due Sep 15, 2026 · SAP QM inspection lot',status:'badge-warning',label:'IN REVIEW'},
+  {icon:'🟡',text:'Nair Brazilian Spa Clay — FTC Substantiation Study',sub:'Consumer study required · Commission by Aug 8 · SAP PLM claim mgmt',status:'badge-warning',label:'ACTION NEEDED'},
+  {icon:'✅',text:'Batiste Invisible — Health Canada Bilingual Label',sub:'Approved Jul 28, 2026 · SAP PLM label approved',status:'badge-good',label:'CLEARED'},
+  {icon:'✅',text:'OxiClean Baby — EU Biocides Regulation Check',sub:'No changes required · Cleared Jul 15, 2026',status:'badge-good',label:'CLEARED'},
+];
+function renderCompliance(){
+  const el=document.getElementById('compliance-checks');
+  if(!el)return;
+  el.innerHTML=CHECKS.map(c=>`<div class="check-item"><div class="check-icon">${c.icon}</div><div class="check-text"><div>${c.text}</div><div class="check-sub">${c.sub}</div></div><div class="check-status"><span class="badge ${c.status}">${c.label}</span></div></div>`).join('');
+}
+/* Show/hide ap-4-disruption + ap-2-extra with their parent panels */
+const _origSelectAgent=typeof selectAgent==='undefined'?null:selectAgent;
+function selectAgent(n){
+  for(let i=1;i<=8;i++){const b=document.getElementById('abtn-'+i);const p=document.getElementById('ap-'+i);if(b)b.className='agent-btn';if(p)p.style.display='none';}
+  const extra4=document.getElementById('ap-4-disruption');if(extra4)extra4.style.display='none';
+  const AC=['','active-a1','active-a2','active-a3','active-a4','active-a5','active-a6','active-a7','active-a8'];
+  const sb=document.getElementById('abtn-'+n);const sp=document.getElementById('ap-'+n);
+  if(sb)sb.classList.add(AC[n]);if(sp)sp.style.display='';
+  if(n===4&&extra4)extra4.style.display='';
+  renderSKUForecast();renderSentiment();renderCompliance();
+}
+function tick(){const n=new Date();document.getElementById('clock').textContent=n.toISOString().replace('T',' ').slice(0,19)+' UTC';}
+tick();setInterval(tick,1000);
+function toggleHelp(id){const el=document.getElementById(id);const c=document.getElementById(id+'-chevron');const o=el.style.display!=='none';el.style.display=o?'none':'block';if(c)c.textContent=o?'▼':'▲';}
+const TABS=['overview','deepdive','actions','roi','allocation','manufacturing','network','coverage','sources','help'];
+function switchTab(el,id){document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active'));el.classList.add('active');TABS.forEach(t=>{document.getElementById('tab-'+t).style.display=t===id?'':'none';});}
+function drillAgent(n){document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active'));document.querySelectorAll('.tab')[1].classList.add('active');TABS.forEach(t=>{document.getElementById('tab-'+t).style.display=t==='deepdive'?'':'none';});selectAgent(n);}
+const AC=['','active-a1','active-a2','active-a3','active-a4','active-a5','active-a6','active-a7','active-a8'];
+function selectAgent(n){for(let i=1;i<=8;i++){const b=document.getElementById('abtn-'+i);const p=document.getElementById('ap-'+i);if(b)b.className='agent-btn';if(p)p.style.display='none';}const sb=document.getElementById('abtn-'+n);const sp=document.getElementById('ap-'+n);if(sb)sb.classList.add(AC[n]);if(sp)sp.style.display='';}
+const FEED=[
+  {agent:8,color:'#7C4DFF',msg:'SAP BN component planning: SBC procurement constraint signal elevated — supplier capacity compression detected across network.',time:'2 min ago'},
+  {agent:1,color:'#3987e5',msg:'SAP IBP Demand Sensing: ARM & HAMMER 4lb POS velocity +24.8% vs statistical baseline. Outlier correction confirmed: genuine sustained uplift.',time:'4 min ago'},
+  {agent:8,color:'#7C4DFF',msg:'SAP BN Planning Collaboration: Tata Chemicals committed 800 MT SBC for Aug 18. Capacity confirmation received via BN supply chain collab.',time:'7 min ago'},
+  {agent:7,color:'#0097A7',msg:'SAP Digital Manufacturing: Line 4 bearing wear detected via sensor integration. PM notification created (priority: Very High). OEE: 83% → 71%.',time:'11 min ago'},
+  {agent:4,color:'#c89a1a',msg:'SAP Ariba Risk Management: Tier-1 SBC supplier risk score elevated 38 → 81 (force majeure event). IBP supply replan triggered.',time:'14 min ago'},
+  {agent:8,color:'#7C4DFF',msg:'SAP BN for Logistics: CTR-0841 & CTR-0842 HDPE inbound via West Coast. ILWU labour risk flag. East Coast reroute recommended.',time:'20 min ago'},
+  {agent:6,color:'#0A7EC2',msg:'SAP aATP PAL: ARM & HAMMER Baking Soda Walmart quota 91% consumed. IBP allocation replan queued via CIG OData API.',time:'26 min ago'},
+  {agent:5,color:'#b84db0',msg:'SAP DM Vision AI: Vitafusion Batch VF-003 label print deviation 0.4mm detected. QM inspection lot raised. SAP PLM revision workflow initiated.',time:'32 min ago'},
+];
+function renderFeed(){const ul=document.getElementById('feed-list');ul.innerHTML=FEED.map((e,i)=>`<div class="feed-item"><div class="feed-dot-wrap"><div class="feed-dot" style="background:${e.color};box-shadow:0 0 6px ${e.color}80;"></div>${i<FEED.length-1?'<div class="feed-line"></div>':''}</div><div class="feed-right"><div class="feed-agent" style="color:${e.color};">Agent 0${e.agent}</div><div class="feed-msg">${e.msg}</div><div class="feed-time">${e.time}</div></div></div>`).join('');}
+renderFeed();
+const AI_R={
+  sap:`<strong>SAP Products Powering v6</strong><br><br>• Agent 01: SAP IBP Demand Sensing (xGBoost) + SAP CAR POS<br>• Agent 02: SAP TPM + SAP CAR + CO-PA<br>• Agent 03: SAP CAR + SAP Emarsys + External market data<br>• Agent 04: SAP Ariba Risk Mgmt + SAP IBP Supply + External commodity<br>• Agent 05: SAP PLM + SAP QM + SAP EHS<br>• Agent 06: SAP IBP Allocation + SAP aATP + SAP CIG<br>• Agent 07: SAP Digital Manufacturing + SAP PM + SAP PP<br>• Agent 08: SAP Business Network (all modules)<br>• Platform: SAP BTP + SAP Analytics Cloud + SAP Task Center`,
+  v6:`<strong>What changed v5 → v6</strong><br><br>1. <strong>TikTok signal removed</strong> → replaced with SAP IBP Demand Sensing POS anomaly (SAP CAR native)<br>2. <strong>"Ciner mine flood" removed</strong> → replaced with "Tier-1 supplier force majeure" via SAP Ariba Risk Mgmt<br>3. <strong>Scarcity index 94/100 removed</strong> → replaced with SAP BN component planning constraint signal (confirmed capability)<br>4. <strong>KPIs corrected to industry benchmarks</strong>: MAPE 5.8%→21.4%, fill rate 87.4%→94.3%, promo ROI 1.38×→38%<br>5. <strong>New SAP Coverage tab added</strong> showing which SAP product powers each agent`,
+  scarcity:`<strong>Why was the scarcity index removed?</strong><br><br>The v5 "SBC Scarcity Index 94/100" was a <strong>fictional metric</strong> — SAP Business Network does not publish a public scarcity index.<br><br>The v6 replacement is based on a <strong>real SAP BN capability</strong>: the component planning collaboration module surfaces when supplier capacity commitments are compressed across multiple network members — enabling earlier shortage response than internal signals alone.<br><br>Note: Specific buyer identities are anonymised on the SAP Business Network. The "12 competing buyers" figure from v5 has been replaced with a directional "multi-member constraint signal."`,
+  ibp:`<strong>SAP IBP Demand Sensing</strong><br><br>• Algorithm: Hybrid Gradient Boosting (xGBoost)<br>• Data inputs: POS (SAP CAR), sales orders (SD), promotions (TPM), inventory (MM)<br>• Granularity: Daily, product-location-customer level<br>• Horizon: 4–8 weeks<br>• Outlier detection: Automatic — flags &amp; excludes anomalous history from learning phase<br>• In this demo: +24.8% POS velocity spike on A&H 4lb confirmed as genuine (not data quality artifact)<br><br>Source: SAP Help Portal — Demand Sensing Process (help.sap.com)`,
+};
+function openAIPanel(){const p=document.getElementById('ai-panel');p.classList.remove('collapsed');p.classList.add('expanded');document.getElementById('ai-toggle').textContent='▲';}
+function toggleAIPanel(){const p=document.getElementById('ai-panel');const ic=p.classList.contains('collapsed');p.classList.toggle('collapsed',!ic);p.classList.toggle('expanded',ic);document.getElementById('ai-toggle').textContent=ic?'▲':'▼';}
+function sendAI(){const inp=document.getElementById('ai-input');const q=inp.value.trim();if(!q)return;inp.value='';const body=document.getElementById('ai-body');openAIPanel();const um=document.createElement('div');um.className='ai-msg user';um.textContent=q;body.appendChild(um);setTimeout(()=>{const ql=q.toLowerCase();let r;if(ql.includes('sap')||ql.includes('product')||ql.includes('which'))r=AI_R.sap;else if(ql.includes('v6')||ql.includes('change')||ql.includes('different')||ql.includes('new'))r=AI_R.v6;else if(ql.includes('scarcity')||ql.includes('index')||ql.includes('94'))r=AI_R.scarcity;else if(ql.includes('ibp')||ql.includes('demand sensing')||ql.includes('forecast'))r=AI_R.ibp;else r=`<strong>v6 SAP-Grounded Response</strong><br><br>Query: "${q}"<br><br>In v6 every agent is grounded in a specific SAP product. Key scenario: SAP IBP detected +24.8% POS anomaly (ARM & HAMMER), SAP Ariba Risk Mgmt surfaced Tier-1 SBC supplier force majeure (risk score 38→81), SAP BN Planning Collaboration confirmed Tata Chemicals 800 MT SBC. Which aspect would you like to explore?`;const bm=document.createElement('div');bm.className='ai-msg bot';bm.innerHTML=r;body.appendChild(bm);body.scrollTop=body.scrollHeight;},600);}
+setTimeout(()=>{openAIPanel();},2500);
+</script>
+</body>
+</html>
